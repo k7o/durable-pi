@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Host side of the device kit: copy one device's bearer token out of its sandbox and into the
+# hub registry on this machine.
+#
+#   ./sbx/enroll.sh <device-id> <sandbox-name>
+#
+# This is the step no kit can do. A kit turns one sandbox into one device and generates that
+# device's token inside it; joining a device to a network means moving the token across a
+# sandbox boundary, which is a host-side act. Run it from the durable-pi checkout, or from an
+# environment file's lifecycle.postCreate hook, which passes $SBX_SANDBOX_NAME.
+#
+# The device has to be declared in dpi-network.yaml as `kind: url` first — the URL is a choice
+# (which host port you published, whether the hub reaches it as 127.0.0.1 or
+# host.docker.internal) and this script will not guess it. When the id is missing, the script
+# prints what to add and exits 0, so a postCreate hook never fails a create over it.
+set -euo pipefail
+
+if [ "${1:-}" = "" ] || [ "${2:-}" = "" ]; then
+  printf 'usage: sbx/enroll.sh <device-id> <sandbox-name>\n' >&2
+  exit 2
+fi
+
+id="$1"
+sandbox="$2"
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+network_file="$root/dpi-network.yaml"
+
+if [ ! -f "$network_file" ]; then
+  printf 'enroll: %s does not exist; nothing to register into\n' "$network_file" >&2
+  exit 0
+fi
+
+if ! grep -qE "^  ${id}:" "$network_file"; then
+  cat >&2 <<EOF
+enroll: ${id} is not declared in ${network_file}. Add it, then re-run:
+
+  devices:
+    ${id}:
+      kind: url
+      url: http://127.0.0.1:<host-port>     # or http://host.docker.internal:<host-port> when the hub runs in another sandbox
+
+and publish the device's port on the host: sbx ports ${sandbox} --publish 0.0.0.0:<host-port>:4780/tcp
+EOF
+  exit 0
+fi
+
+# The token lives in the device's own ~/.dpi/backend.env, mode 600. Read it over the sandbox
+# boundary without echoing it anywhere else.
+token="$(sbx exec "$sandbox" sh -c 'sed -n "s/^DPI_TOKEN=//p" "$HOME/.dpi/backend.env"' | tr -d '\r\n')"
+if [ "${#token}" -lt 32 ]; then
+  printf 'enroll: no token in %s:~/.dpi/backend.env (is the backend up? try `sbx exec %s durable status`)\n' "$sandbox" "$sandbox" >&2
+  exit 1
+fi
+
+cd "$root"
+npx --yes tsx apps/dpi-sdk/scripts/net.ts register "$id" --token "$token"
+npx --yes tsx apps/dpi-sdk/scripts/net.ts status "$id"

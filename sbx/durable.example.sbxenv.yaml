@@ -1,0 +1,54 @@
+# Example environment file for a Durable Pi device sandbox (copy and edit; the real one is
+# machine-specific and stays out of git). `sbx env create <this file>` builds the workload from
+# ./ (its descriptor directory) and mounts your code.
+#
+#   name:      the sandbox name
+#   agent:     the workload's identity — the last component of the image repository. A local
+#              directory resolves to the same name only when you build and tag the image that
+#              way, so prefer `just kit build && just kit push` and the reference form below.
+#   workspace: the tree durable agents work on. Sessions start here.
+schemaVersion: "1"
+name: durable-dev
+agent: sbx-kit-durable
+workspace: /path/to/your/repo
+kits:
+  - k7o/sbx-kit-durable:0.1.0
+
+# Extra trees the agents may read or write, mounted after the primary workspace.
+# additionalWorkspaces:
+#   - path: /path/to/another/repo
+#   - path: /path/to/reference-docs
+#     readOnly: true
+
+# Publish the API on a fixed host port. The kit's port@1 entry publishes an ephemeral loopback
+# port without this, and an ephemeral port breaks every later registration.
+# hostIP: 0.0.0.0 binds the host's interfaces instead of loopback, which is what a client on
+# another machine or in another sandbox needs. Browse 127.0.0.1 rather than localhost: on
+# native Windows localhost resolves to ::1 first, and this port is IPv4.
+ports:
+  - sandbox: 4780
+    host: 4780
+    protocol: tcp4
+    hostIP: 0.0.0.0
+
+env:
+  DPI_PROVIDER: opencode-go          # opencode-go, opencode, deepseek, or faux (no key needed)
+  DPI_MODEL: deepseek-v4.1-flash
+  # DPI_DEVICE_NAME: my-device       # defaults to the sandbox hostname
+
+# Approve the proxy injection domains for the keys this device uses.
+bindings:
+  opencode:
+    apiKey:
+      domains: [opencode.ai]
+  deepseek:
+    apiKey:
+      domains: [api.deepseek.com]
+
+# Runs on the host after the sandbox exists, once. It copies the device's token into this
+# machine's hub registry, so the device shows up in the hub without a manual step. Skip the
+# block when you drive the device directly with dpi-tui.
+lifecycle:
+  postCreate:
+    - name: Enroll the device with the hub
+      command: ./sbx/enroll.sh durable-dev "$SBX_SANDBOX_NAME"

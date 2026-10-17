@@ -21,6 +21,9 @@ mod test 'just/test'
 # Proactive DPI demo: just proactive <command>
 mod proactive 'just/proactive'
 
+# The sbx v3 workload in sbx/: build the device image, run a device sandbox
+mod kit 'just/kit'
+
 # List command groups
 default:
     @just --list

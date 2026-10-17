@@ -1,0 +1,111 @@
+# syntax=docker/sandbox-kit:3
+#
+# One Durable Pi device. The sandbox is a server, not an agent CLI: dpi-backend owns the
+# durable sessions (SQLite, tools, checkpoints) and dpi-tui is the client that attaches to it.
+# That is why this is a v3 workload rather than a v2 sandbox kit — there is no agent binary to
+# name as entrypoint[0], and the sandbox has to outlive the client that started it.
+schemaVersion: "3"
+displayName: Durable Pi device
+author: "Eric Kerst <eric.kerst@gmail.com>"
+description: >-
+  A Durable Pi device: dpi-backend owning durable agent sessions over HTTP+SSE, plus the
+  dpi-tui terminal client. The device keeps working with no client attached, so a closed
+  terminal or a restarted backend does not end the run.
+sourceUrl: https://github.com/k7o/durable-pi
+licenses: [MIT]
+
+kind: workload
+version: "0.1.0"
+
+args:
+  provider:
+    default: opencode-go
+    description: Model provider for this device (opencode-go, opencode, deepseek, faux)
+    env: DPI_PROVIDER
+  model:
+    default: deepseek-v4.1-flash
+    description: Model a new session starts on
+    env: DPI_MODEL
+
+capabilities:
+  # The device owns its runs. Without this a local sandbox stops shortly after its last client
+  # disconnects, which is exactly the behavior a durable agent exists to survive.
+  - type: com.docker.sandbox/long-running@1
+
+  # The host launches the workload's command instead of letting the image entrypoint be PID 1,
+  # and honors the image's user rather than assuming one. See sbx@1's requirements on /bin/sh,
+  # /bin/bash, and a resolvable non-root user — the shell template provides all three.
+  - type: com.docker.sandbox/sbx@1
+
+  # dpi-backend's HTTP + SSE API. No transport on purpose: the empty value publishes IPv4 only,
+  # which is what a service bound to 0.0.0.0 needs. `tcp` would also bind ::1 on the host and
+  # reset any client that arrives there, because nothing in the container listens on IPv6.
+  - type: com.docker.sandbox/port@1
+    description: dpi-backend API (clients talk here; the web hub proxies to it)
+    config: {name: dpi-backend, container: 4780}
+
+  # Both credentials are optional: the device runs on either key, and on `faux` with neither.
+  - type: com.docker.sandbox/credential@1
+    optional: true
+    description: OpenCode Zen and Go keys (also serve Jev for jev-damage-control)
+    config:
+      service: opencode
+      phase: runtime
+      apiKey:
+        name: OPENCODE_API_KEY
+        proxyManaged: true
+        inject:
+          - {domain: opencode.ai, header: Authorization, format: "Bearer %s"}
+
+  - type: com.docker.sandbox/credential@1
+    optional: true
+    description: DeepSeek platform key
+    config:
+      service: deepseek
+      phase: runtime
+      apiKey:
+        name: DEEPSEEK_API_KEY
+        proxyManaged: true
+        inject:
+          - {domain: api.deepseek.com, header: Authorization, format: "Bearer %s"}
+
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          # Model providers. Every credential inject domain has to be listed here too, even
+          # when the entry above is optional.
+          - opencode.ai:443
+          - api.deepseek.com:443
+          # The durable agent's tools work on the mounted workspace: git, gh, and npm when a
+          # task installs dependencies.
+          - github.com:443
+          - api.github.com:443
+          - codeload.github.com:443
+          - objects.githubusercontent.com:443
+          - registry.npmjs.org:443
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      startup:
+        # Every boot, including after a stop/start or a daemon restart. `durable start` is
+        # idempotent: it rewrites ~/.dpi/backend.env (keeping the token), then starts the
+        # backend only when nothing answers /healthz. Hook env is deny-by-default, so the
+        # variables the device needs are named here.
+        - command: [/usr/local/bin/durable, start]
+          user: agent
+          background: true
+          env:
+            - WORKSPACE_DIR
+            - DPI_PROVIDER
+            - DPI_MODEL
+            - DPI_PORT
+            - DPI_DEVICE_NAME
+            - OPENCODE_API_KEY
+            - DEEPSEEK_API_KEY
+          description: Start dpi-backend unless it is already answering
+
+  - type: com.docker.sandbox/agent-context@1
+    config:
+      filename: AGENTS.md
+      contentFile: ./context/AGENTS.md

@@ -30,3 +30,6 @@ test-results/
 tmp/
 *.log
 .DS_Store
+
+# staged apps for the sbx workload image (just kit stage)
+sbx/build/

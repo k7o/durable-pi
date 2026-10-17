@@ -240,6 +240,24 @@ Every line of a device's `~/.dpi/backend.env` traces to the YAML: `DPI_PORT`, `D
 
 ---
 
+### Devices as Docker sandboxes
+
+A sandbox can be a device. `sbx/` holds a v3 [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) workload that builds the backend and the terminal client into one image and asks the host to keep the sandbox running with no client attached (`com.docker.sandbox/long-running@1`). That last part is why this is a v3 workload and not a mixin on an agent kit: a device is a server, and it has to outlive whoever started it.
+
+It is a separate kit lineage from the v2 kits in the [pi repo](https://github.com/k7o/pi): a v3 kit is a descriptor plus a Dockerfile built with `docker buildx`, while a v2 kit is a `spec.yaml` plus a `files/` tree. The two do not compose.
+
+```bash
+just kit build            # stage the apps into sbx/build, build the image (needs docker buildx)
+just kit run durable-dev  # build, then create a device sandbox with this checkout as its workspace
+just kit check            # sbx kit validate ./sbx
+```
+
+The sandbox mounts this checkout as its workspace and sessions start there, so the durable agents edit your tree. Inside it, `durable status`, `durable attach` (dpi-tui on a session) and `durable shell` are the entry points.
+
+To put the device on a hub, declare it in `dpi-network.yaml` as `kind: url` and run `just kit enroll <id> <sandbox>`; that copies the device's token out of its sandbox and into `~/.dpi/network.sqlite`, which is the one step no kit can do for you. [`sbx/durable.example.sbxenv.yaml`](sbx/durable.example.sbxenv.yaml) is the environment-file form, including a `postCreate` hook that enrolls the device automatically, and [`sbx/README.md`](sbx/README.md) has the rest.
+
+---
+
 ## Why go durable
 
 <p align="center">
@@ -275,7 +293,7 @@ durable-pi/
 ├── dpi-network.example.yaml           # template for dpi-network.yaml (gitignored): devices, kinds, start_dirs
 ├── .env.example                       # provider API keys (OPENROUTER / DEEPSEEK / OPENCODE; + ELEVENLABS for the demo voice)
 ├── justfile                           # install, check, and one module per work area
-├── just/                              # net, backend, hub, tui, test, proactive (one mod.just each)
+├── just/                              # net, backend, hub, tui, test, proactive, kit (one mod.just each)
 ├── apps/
 │   ├── dpi-sdk/                       # contract, client, reducers, transcript; node/ = registry, YAML config, ops drivers
 │   │   └── scripts/net.ts             # the ops CLI behind just net
@@ -289,6 +307,12 @@ durable-pi/
 │   │   └── tests/                     # hub test, faux-device UI suite, per-device suites, e2e scenario
 │   ├── dpi-tui/                       # pi-like terminal client on @earendil-works/pi-tui
 │   └── proactive-dpi-demo/            # the hook: Jev log watcher, incident agents, durable deploy approval
+├── sbx/                               # v3 Docker Sandboxes workload: the device as an image (see sbx/README.md)
+│   ├── durable.yaml                   #   descriptor: long-running, port@1, credentials, lifecycle, context
+│   ├── durable.dockerfile             #   recipe: shell-docker template + the three apps + entrypoint
+│   ├── scripts/durable.sh             #   in-sandbox: start the backend, attach dpi-tui, status
+│   ├── enroll.sh                      #   host-side: device token -> hub registry
+│   └── durable.example.sbxenv.yaml    #   environment-file template, incl. the postCreate enrollment hook
 ├── images/                            # README diagrams, numbered in reading order
 ├── .claude/                           # commands/ (prime, install), skills/agent-sandboxes-exe-dev/ (device ops)
 └── ai_docs/                           # pi and pi-durable documentation snapshots
@@ -297,7 +321,7 @@ durable-pi/
 ### Commands
 
 ```bash
-just                       # command groups: net, backend, hub, tui, test, proactive
+just                       # command groups: net, backend, hub, tui, test, proactive, kit
 just install               # npm install for the four network apps
 just check                 # type checks and unit tests, every app (free, no network)
 just backend run           # this machine's device server on :4780
