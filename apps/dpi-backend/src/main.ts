@@ -14,6 +14,7 @@ const store = await Store.open({
   startDirs: config.startDirs,
   name: config.name,
   provider: config.provider,
+  defaultModel: config.defaultModel,
 });
 
 const app = express();
@@ -28,6 +29,7 @@ server.keepAliveTimeout = 65_000;
 server.listen(config.port, config.host, () => {
   console.log(`dpi-backend "${config.name}" (uid ${store.uid}) on http://${config.host}:${config.port}`);
   console.log(`data: ${config.dataDir}  start dirs: ${config.startDirs.join(", ")}  provider: ${config.provider}`);
+  console.log(`default model: ${config.defaultModel}  models: ${store.modelList.length}`);
   if (config.host === "0.0.0.0")
     for (const addresses of Object.values(networkInterfaces()))
       for (const a of addresses ?? [])

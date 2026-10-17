@@ -37,7 +37,12 @@ defaults:
   start_dirs: ["~/dpi-work"]       # where new sessions start (created if missing); any existing folder works as a cwd
   env_keys: [OPENROUTER_API_KEY]   # secrets: copied by name from .env, never written here
   # env:                           # plain settings, written as-is
-  #   DPI_PROVIDER: faux           # the free deterministic model, for tests
+  #   DPI_PROVIDER: opencode-go    # openrouter (default), deepseek, opencode, opencode-go, faux
+  #   DPI_MODEL: deepseek-v4.1-flash
+  #
+  # A device on a direct provider needs that provider's key in env_keys instead of OpenRouter's:
+  #   env_keys: [OPENCODE_API_KEY]     # DPI_PROVIDER: opencode or opencode-go
+  #   env_keys: [DEEPSEEK_API_KEY]     # DPI_PROVIDER: deepseek
 
 devices:
   local:

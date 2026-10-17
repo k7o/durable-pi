@@ -4,6 +4,8 @@
 import { existsSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { defaultModelByProvider } from "./model-catalog.js";
+import { PROVIDER_CREDENTIALS, isProviderId, PROVIDER_IDS, type ProviderId } from "./provider.js";
 
 export interface BackendConfig {
   name: string;
@@ -13,7 +15,9 @@ export interface BackendConfig {
   envFile: string;
   dataDir: string;
   startDirs: string[];
-  provider: "openrouter" | "faux";
+  provider: ProviderId;
+  /** The model a session starts on when it does not name one. */
+  defaultModel: string;
   token: string;
 }
 
@@ -30,6 +34,9 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Bac
   const home = expand(env.DPI_HOME ?? join(homedir(), ".dpi"));
   const envFile = expand(flag("--env-file", env.DPI_ENV_FILE ?? join(home, "backend.env")));
   if (existsSync(envFile)) process.loadEnvFile(envFile);
+  const provider = env.DPI_PROVIDER ?? "openrouter";
+  if (!isProviderId(provider))
+    throw Error(`DPI_PROVIDER must be one of ${PROVIDER_IDS.join(", ")} (got "${provider}")`);
   const config: BackendConfig = {
     name: flag("--name", env.DPI_DEVICE_NAME ?? hostname().replace(/\.local$/, "")),
     host: flag("--host", env.DPI_HOST ?? "127.0.0.1"),
@@ -41,7 +48,8 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Bac
       .split(":")
       .filter(Boolean)
       .map((p) => resolve(expand(p))),
-    provider: (env.DPI_PROVIDER ?? "openrouter") === "faux" ? "faux" : "openrouter",
+    provider,
+    defaultModel: flag("--model", env.DPI_MODEL ?? defaultModelByProvider[provider]),
     token: env.DPI_TOKEN ?? "",
   };
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535)
@@ -50,5 +58,13 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Bac
     throw Error(
       `DPI_TOKEN is missing or shorter than 32 characters (looked in ${envFile}). Create one with: npm run token`,
     );
+  if (config.provider !== "faux") {
+    const missing = PROVIDER_CREDENTIALS[config.provider].find((name) => !env[name]);
+    if (missing)
+      console.warn(
+        `warning: ${missing} is not set, so this device will list no models. ` +
+          `Add it to ${envFile} or the process environment.`,
+      );
+  }
   return config;
 }

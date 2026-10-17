@@ -9,20 +9,33 @@ export type JevAnswer =
 
 const RETRY = new Set([429, 502, 503, 529]);
 
+/**
+ * TypeSafe serves System One natively; OpenRouter and OpenCode Zen both re-serve it. First
+ * configured credential wins, so a device that already had an OpenRouter key keeps using it.
+ * `DPI_JEV_MODEL` overrides the model (OpenCode Zen also offers the paid `jev-1.13`).
+ */
+function jevEndpoint(): [string, string, string] | undefined {
+  const model = process.env.DPI_JEV_MODEL;
+  if (process.env.TYPESAFE_API_KEY)
+    return ["https://api.typesafe.ai/v1/systemone", process.env.TYPESAFE_API_KEY, model ?? "jev-latest"];
+  if (process.env.OPENROUTER_API_KEY)
+    return ["https://openrouter.ai/api/alpha/decisions", process.env.OPENROUTER_API_KEY, model ?? "~typesafe/jev-latest"];
+  if (process.env.OPENCODE_API_KEY)
+    return ["https://opencode.ai/inference/v1/systemone", process.env.OPENCODE_API_KEY, model ?? "jev-1.13-free"];
+  return undefined;
+}
+
 export async function askJev(
   state: unknown,
   questions: Record<string, JevQuestion>,
   signal?: AbortSignal,
 ): Promise<Record<string, JevAnswer>> {
-  const [endpoint, key, model] = process.env.TYPESAFE_API_KEY
-    ? ["https://api.typesafe.ai/v1/systemone", process.env.TYPESAFE_API_KEY, "jev-latest"]
-    : process.env.OPENROUTER_API_KEY
-      ? ["https://openrouter.ai/api/alpha/decisions", process.env.OPENROUTER_API_KEY, "~typesafe/jev-latest"]
-      : [];
-  if (!endpoint) throw Error("Jev needs TYPESAFE_API_KEY or OPENROUTER_API_KEY");
+  const endpoint = jevEndpoint();
+  if (!endpoint) throw Error("Jev needs TYPESAFE_API_KEY, OPENROUTER_API_KEY or OPENCODE_API_KEY");
+  const [url, key, model] = endpoint;
   const body = JSON.stringify({ model, state, questions });
   for (let attempt = 1; ; attempt++) {
-    const res = await fetch(endpoint, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body,

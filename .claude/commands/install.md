@@ -6,7 +6,7 @@ description: Install Durable Pi: prerequisites, .env, app dependencies, the web 
 
 ## Purpose
 
-Set up this checkout so this machine can run a `dpi-backend` device, the web hub and the terminal client. Check prerequisites, confirm the OpenRouter key, install the four network apps, build the web UI, write this machine's device config, and verify with the test suite. This is an interactive, agentic process: ask the user when a choice is needed.
+Set up this checkout so this machine can run a `dpi-backend` device, the web hub and the terminal client. Check prerequisites, confirm the provider key, install the four network apps, build the web UI, write this machine's device config, and verify with the test suite. This is an interactive, agentic process: ask the user when a choice is needed.
 
 ## Variables
 
@@ -21,7 +21,7 @@ APPS: `apps/dpi-sdk`, `apps/dpi-backend`, `apps/dpi-playground`, `apps/dpi-tui`
 ```text
 justfile                 # groups: net, backend, hub, tui, test, proactive (just/<group>/mod.just)
 dpi-network.example.yaml # template: defaults + the local device, commented ssh and exe-dev examples
-.env.example             # OPENROUTER_API_KEY (copied into each device's backend.env), optional TypeSafe and ElevenLabs settings
+.env.example             # provider API keys (copied into each device's backend.env), optional TypeSafe and ElevenLabs settings
 apps/dpi-sdk/            # contract, client, models, registry, ops drivers (scripts/net.ts)
 apps/dpi-backend/        # the device server (port 4780)
 apps/dpi-playground/     # hub + Vue web UI (port 4781)
@@ -60,9 +60,10 @@ Optional, so report them and continue:
 
 ### Step 2 — Check Environment
 
-1. If `.env` is missing, copy the template: `cp .env.example .env`, then ask the user to paste their OpenRouter key into `.env` (https://openrouter.ai/keys). Do not ask for the key in chat.
-2. Confirm the key is set without printing it: `grep -Eq '^OPENROUTER_API_KEY=sk-' .env && echo set || ([ -n "$OPENROUTER_API_KEY" ] && echo "set in environment") || echo missing`.
-3. If it is missing and the user wants to continue without a key, tell them the backend can run with the free deterministic model: `DPI_PROVIDER=faux just backend run`.
+1. If `.env` is missing, copy the template: `cp .env.example .env`.
+2. Ask which provider the user wants before asking for a key. The backend reads `DPI_PROVIDER`: `openrouter` (default), `deepseek`, `opencode` (OpenCode Zen), `opencode-go` (OpenCode Go) or `faux` (free deterministic model, no key). Set it under `defaults.env` in `dpi-network.yaml`, and name the matching key in `env_keys` — `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, or `OPENCODE_API_KEY`. Do not ask for the key in chat.
+3. Confirm the key for that provider is set without printing it, e.g. `grep -Eq '^OPENROUTER_API_KEY=.+' .env && echo set || ([ -n "$OPENROUTER_API_KEY" ] && echo "set in environment") || echo missing` (same shape for the other two names).
+4. If it is missing and the user wants to continue without a key, tell them the backend can run with the free deterministic model: `DPI_PROVIDER=faux just backend run`.
 4. Optional, for the proactive demo's voice line: `grep -Eq '^ELEVENLABS_API_KEY=.+' .env && echo set || echo "not set (the demo runs, the voice line is skipped)"`. The line plays through `afplay` on macOS and in the browser elsewhere; `ELEVENLABS_VOICE_ID` picks another voice from the user's ElevenLabs account.
 
 ### Step 3 — Install Dependencies
@@ -74,7 +75,7 @@ Optional, so report them and continue:
 
 1. If `dpi-network.yaml` is missing, create it: `cp dpi-network.example.yaml dpi-network.yaml`. Never overwrite an existing one.
 2. `just net ids`: the file parses and lists device ids. Confirm `local` is among them.
-3. `just net up local`: writes `~/.dpi/backend.env` with a fresh `DPI_TOKEN` (or keeps an existing one), copies `OPENROUTER_API_KEY` from `.env`, and registers the device in `~/.dpi/network.sqlite`. Then confirm `test -f ~/.dpi/backend.env && stat -f '%Lp' ~/.dpi/backend.env` (Linux: `stat -c '%a'`) shows `600`. Never print the file.
+3. `just net up local`: writes `~/.dpi/backend.env` with a fresh `DPI_TOKEN` (or keeps an existing one), copies the provider key named in `env_keys` from `.env`, and registers the device in `~/.dpi/network.sqlite`. Then confirm `test -f ~/.dpi/backend.env && stat -f '%Lp' ~/.dpi/backend.env` (Linux: `stat -c '%a'`) shows `600`. Never print the file.
 4. `just hub build`: type-checks and builds the web UI that `just hub start` serves.
 5. Tell the user that new sessions start in `~/dpi-work` (created by `just net up local`) unless they set `start_dirs`, that any existing folder on the device works as a session cwd, and that remote machines are added by uncommenting the `ssh` or `exe-dev` example in `dpi-network.yaml` and running `just net up <id>`.
 

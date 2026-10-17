@@ -17,6 +17,13 @@ echo "OPENROUTER_API_KEY=sk-or-..." >> ~/.dpi/backend.env
 npm start                      # 127.0.0.1:4780; data in ~/.dpi/backend
 ```
 
+No OpenRouter account? Pick a direct provider in `~/.dpi/backend.env` and supply that key instead:
+
+```bash
+printf 'DPI_PROVIDER=opencode-go\nOPENCODE_API_KEY=...\n' >> ~/.dpi/backend.env   # OpenCode Zen and Go
+printf 'DPI_PROVIDER=deepseek\nDEEPSEEK_API_KEY=...\n' >> ~/.dpi/backend.env      # DeepSeek direct
+```
+
 With the repo's network config, `just net up local && just backend run` does the same thing. `just backend run` first stops whatever already listens on the backend's port.
 
 ## Configuration: `~/.dpi/backend.env`
@@ -30,11 +37,15 @@ With the repo's network config, `just net up local && just backend run` does the
 | `DPI_DATA_DIR` | `$DPI_HOME/backend` | catalog, app state, `sessions/`, `archive/` |
 | `DPI_HOME` | `~/.dpi` | where `backend.env` is read (set by the service unit) |
 | `DPI_ENV_FILE` | `$DPI_HOME/backend.env` | the env file to read |
-| `DPI_PROVIDER` | `openrouter` | `faux` gives a free deterministic model for tests |
-| `OPENROUTER_API_KEY` | | model access, required unless `DPI_PROVIDER=faux`. Without it the device lists no models. Never sent to clients |
-| `TYPESAFE_API_KEY` | | optional: `jev-damage-control` asks Jev with it, else through OpenRouter |
+| `DPI_PROVIDER` | `openrouter` | one of `openrouter`, `deepseek`, `opencode`, `opencode-go`, `faux`. `faux` gives a free deterministic model for tests. Direct providers list the catalog pi-ai ships for them; `openrouter` lists the reviewed shortlist in `src/model-catalog.ts` |
+| `DPI_MODEL` | the provider's default | model a new session starts on. Defaults per provider are in `src/model-catalog.ts` |
+| `OPENROUTER_API_KEY` | | model access when `DPI_PROVIDER=openrouter`, required unless `DPI_PROVIDER=faux`. Without a key the device lists no models. Never sent to clients |
+| `DEEPSEEK_API_KEY` | | model access when `DPI_PROVIDER=deepseek` |
+| `OPENCODE_API_KEY` | | model access when `DPI_PROVIDER=opencode` or `opencode-go` |
+| `TYPESAFE_API_KEY` | | optional: `jev-damage-control` asks Jev with it, else through OpenRouter or OpenCode Zen |
+| `DPI_JEV_MODEL` | provider default | optional: overrides the Jev classifier model |
 
-Flags `--port`, `--host`, `--name`, `--start-dirs`, `--data-dir` and `--env-file` override the env.
+Flags `--port`, `--host`, `--name`, `--start-dirs`, `--data-dir`, `--model` and `--env-file` override the env.
 
 ## Deploy to other devices
 
@@ -104,6 +115,7 @@ The one-request client needs nothing but curl. The answer comes back in the same
 read U T < <(sqlite3 -separator ' ' ~/.dpi/network.sqlite "select url, token from devices where id='vm-1'")
 H=(-H "Authorization: Bearer $T" -H 'content-type: application/json')
 # cwd "." is the device's first start dir
+# model is any {provider, modelId} from GET /v1/device
 curl -s "$U/v1/sessions" "${H[@]}" -d '{"name":"oneshot","cwd":".","model":{"provider":"openrouter","modelId":"anthropic/claude-sonnet-5.5"}}'
 curl -s "$U/v1/sessions/oneshot/agents/main/messages" "${H[@]}" \
   -d '{"content":"How many files are in this directory? Use bash.","requestId":"oneshot-1","waitMs":120000}'

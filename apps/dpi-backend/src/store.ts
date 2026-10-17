@@ -38,8 +38,8 @@ import { homedir, hostname, platform } from "node:os";
 import { randomUUID } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx, withAbortSignal } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
-import { curatedModels, defaultModelId } from "./model-catalog.js";
+import { curatedByProvider, defaultModelByProvider, describeModel } from "./model-catalog.js";
+import { providerFor, type ProviderId } from "./provider.js";
 import { fauxModels, installFaux } from "./faux.js";
 import {
   Harness,
@@ -90,7 +90,9 @@ export interface StoreOptions {
   dataDir: string;
   startDirs: string[];
   name: string;
-  provider: "openrouter" | "faux";
+  provider: ProviderId;
+  /** Overrides the provider's default model. */
+  defaultModel?: string;
 }
 
 /** Agent documents a client may read or stream, by kind. */
@@ -179,14 +181,17 @@ export class Store {
   private constructor(readonly options: StoreOptions) {
     if (options.provider === "faux") installFaux(this.models);
     else {
-      const provider = openrouterProvider();
-      const catalog = provider.getModels();
-      for (const model of curatedModels)
-        if (!catalog.some((m) => m.id === model.id)) throw Error(`OpenRouter catalog missing ${model.id}`);
-      this.models.setProvider({
-        ...provider,
-        getModels: () => catalog.filter((m) => curatedModels.some((c) => c.id === m.id)),
-      });
+      const provider = providerFor(options.provider);
+      const shortlist = curatedByProvider[options.provider];
+      // A shortlist provider keeps only its reviewed models; the rest list their whole catalog.
+      this.models.setProvider(
+        shortlist
+          ? {
+              ...provider,
+              getModels: () => provider.getModels().filter((m) => shortlist.some((c) => c.id === m.id)),
+            }
+          : provider,
+      );
     }
     mkdirSync(options.dataDir, { recursive: true, mode: 0o700 });
     this.unlockCatalog = lockFile(`${this.catalogPath}.lock`);
@@ -255,7 +260,7 @@ export class Store {
       startedAt: this.startedAt,
       startDirs: this.startDirs,
       models: this.modelList,
-      defaultModel: this.defaultModel(),
+      defaultModel: this.defaultModelId(),
       storage: { dataDir: this.options.dataDir, catalogPath: this.catalogPath, appStatePath: this.sharedStatePath },
       codeDir: CODE_DIR,
       capabilities: ["events", "docs", "demo", "jobs"],
@@ -263,8 +268,9 @@ export class Store {
     };
   }
 
-  private defaultModel() {
-    return this.options.provider === "faux" ? fauxModels[0].id : defaultModelId;
+  private defaultModelId(): string {
+    if (this.options.provider === "faux") return fauxModels[0].id;
+    return this.options.defaultModel ?? defaultModelByProvider[this.options.provider];
   }
 
   private async loadModels(): Promise<ModelInfo[]> {
@@ -279,49 +285,47 @@ export class Store {
         reasoning: false,
         cost: { input: 0, output: 0 },
       }));
-    const available = await this.models.getAvailable("openrouter", { signal: AbortSignal.timeout(10000) });
-    return curatedModels.flatMap((c) => {
-      const m = available.find((m) => m.id === c.id);
-      return m
-        ? [
-            {
-              id: m.id,
-              provider: "openrouter",
-              name: c.name,
-              tier: c.tier,
-              icon: c.icon,
-              contextWindow: m.contextWindow,
-              reasoning: m.reasoning,
-              cost: { input: m.cost.input, output: m.cost.output },
-            },
-          ]
-        : [];
-    });
+    const provider = this.options.provider;
+    // Authorization resolves for every provider, so a device without a key lists no models.
+    const available = await this.models.getAvailable(provider, { signal: AbortSignal.timeout(10000) });
+    const shortlist = curatedByProvider[provider];
+    if (shortlist)
+      return shortlist.flatMap((c) => {
+        const m = available.find((entry) => entry.id === c.id);
+        return m
+          ? [
+              {
+                id: m.id,
+                provider,
+                name: c.name,
+                tier: c.tier,
+                icon: c.icon,
+                contextWindow: m.contextWindow,
+                reasoning: m.reasoning,
+                cost: { input: m.cost.input, output: m.cost.output },
+              },
+            ]
+          : [];
+      });
+    return available.map((m) => describeModel(provider, m));
   }
 
   routedModel(model?: ModelRef): ModelRef {
-    if (this.options.provider === "faux") {
-      const id = fauxModels.some((m) => m.id === model?.modelId) ? model!.modelId : fauxModels[0].id;
-      return { provider: "faux", modelId: id };
-    }
-    const exact = model?.provider === "openrouter" ? model.modelId : `${model?.provider}/${model?.modelId}`;
-    return {
-      provider: "openrouter",
-      modelId: curatedModels.some((m) => m.id === exact) ? exact : defaultModelId,
-    };
+    const provider = this.options.provider;
+    const fallback = this.defaultModelId();
+    if (provider === "faux")
+      return { provider, modelId: fauxModels.some((m) => m.id === model?.modelId) ? model!.modelId : fallback };
+    // A session created on another provider falls back to this device's default.
+    const known = model?.provider === provider && !!this.models.getModel(provider, model.modelId);
+    return { provider, modelId: known ? model!.modelId : fallback };
   }
 
   validateModel(model: unknown): ModelRef {
     const m = model as ModelRef | undefined;
     if (!m || typeof m.provider !== "string" || typeof m.modelId !== "string")
       throw invalid("model must be { provider, modelId }");
-    const known =
-      this.options.provider === "faux"
-        ? m.provider === "faux" && fauxModels.some((f) => f.id === m.modelId)
-        : m.provider === "openrouter" &&
-          curatedModels.some((c) => c.id === m.modelId) &&
-          !!this.models.getModel(m.provider, m.modelId);
-    if (!known) throw invalid(`Unknown model ${m.provider}/${m.modelId}. Choose one from GET /v1/device models`);
+    if (m.provider !== this.options.provider || !this.models.getModel(m.provider, m.modelId))
+      throw invalid(`Unknown model ${m.provider}/${m.modelId}. Choose one from GET /v1/device models`);
     return { provider: m.provider, modelId: m.modelId };
   }
 
