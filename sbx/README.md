@@ -5,6 +5,9 @@ sessions, tools and checkpoints in SQLite) and `dpi-tui` (the terminal client th
 it). The descriptor asks the host to keep the sandbox running with no client attached, so
 closing the terminal or restarting the backend does not end a run.
 
+For the end-to-end runbook — hub on the host, devices in sandboxes, enrollment, day-two ops —
+see [SETUP.md](SETUP.md).
+
 ## Why this shape
 
 It is a **v3 workload**, not a v2 mixin on an agent kit, and the difference is not cosmetic. A v2
@@ -64,7 +67,13 @@ across the sandbox boundary, which only the host can do:
 
 [`durable.example.sbxenv.yaml`](durable.example.sbxenv.yaml) does 1 and 3 declaratively: `ports:`
 pins host and `hostIP`, and `lifecycle.postCreate` runs `enroll.sh` after the sandbox exists.
-Copy it, point `workspace` at your repo, and `sbx env create` instead of `sbx run`.
+Copy it somewhere **outside the workspace it mounts** — it declares a command that runs on your
+host, and a file inside a writable mount can be replaced by the agent — point `args.repo` and
+`workspace` at your checkout, and create one sandbox per device:
+
+```bash
+sbx env create ~/sbx-envs/durable-dev/sbxenv.yaml --name device-a --env-arg hostPort=4780
+```
 
 ## What it does not include
 

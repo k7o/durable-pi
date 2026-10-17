@@ -1,54 +1,83 @@
-# Example environment file for a Durable Pi device sandbox (copy and edit; the real one is
-# machine-specific and stays out of git). `sbx env create <this file>` builds the workload from
-# ./ (its descriptor directory) and mounts your code.
+# A Durable Pi device, as a sandbox environment.
 #
-#   name:      the sandbox name
-#   agent:     the workload's identity — the last component of the image repository. A local
-#              directory resolves to the same name only when you build and tag the image that
-#              way, so prefer `just kit build && just kit push` and the reference form below.
-#   workspace: the tree durable agents work on. Sessions start here.
+# Keep this file OUTSIDE the workspace it mounts. It declares a command that runs on your host
+# (the enrollment hook), and a file inside a writable mount can be replaced by anyone who can
+# write there — including the agent that runs in this sandbox. Copy it to something like
+# ~/sbx-envs/durable-dev/sbxenv.yaml.
+#
+# One file, one device per invocation. Host ports are global, so the second device needs its own:
+#
+#   sbx env create ~/sbx-envs/durable-dev/sbxenv.yaml --force \
+#     --env-arg device=device-a --env-arg hostPort=4780
+#   sbx env create ~/sbx-envs/durable-dev/sbxenv.yaml --force \
+#     --env-arg device=device-b --env-arg hostPort=4781
+#
+# Declare each device in dpi-network.yaml as `kind: url` before creating it; the hook registers
+# the token against that declaration and prints what to add when it is missing.
+
 schemaVersion: "1"
-name: durable-dev
+
+# The sandbox name and the device's display name both come from one argument.
+name: ${{ env.args.device }}
+
+# A v3 workload is selected by the last component of its image repository.
 agent: sbx-kit-durable
-workspace: /path/to/your/repo
+
+args:
+  device:
+    default: device-a
+    description: Device id. Must match the id declared in dpi-network.yaml.
+  hostPort:
+    default: "4780"
+    description: Host port the hub reaches this device on. One per device.
+  repo:
+    default: /path/to/durable-pi
+    description: Absolute path to the durable-pi checkout containing sbx/enroll.sh.
+
+# The checkout the agents work in. This is the real host tree in direct mode.
+workspace: /path/to/your/work
+
 kits:
-  - k7o/sbx-kit-durable:0.1.0
+  # Published image. To iterate on a locally built one instead, build it with `just kit build`
+  # and see the pullPolicy note below.
+  - source: k7o/sbx-kit-durable:0.1.0
+    # args:
+    #   provider: opencode-go
+    #   model: deepseek-v4.1-flash
 
-# Extra trees the agents may read or write, mounted after the primary workspace.
-# additionalWorkspaces:
-#   - path: /path/to/another/repo
-#   - path: /path/to/reference-docs
-#     readOnly: true
+# Provider selection for the device. It falls back on its own if the key for DPI_PROVIDER is not
+# bound in this sandbox, and starts on faux if no key is bound at all.
+env:
+  DPI_PROVIDER: opencode-go
+  DPI_MODEL: deepseek-v4.1-flash
+  DPI_DEVICE_NAME: ${{ env.args.device }}
 
-# Publish the API on a fixed host port. The kit's port@1 entry publishes an ephemeral loopback
-# port without this, and an ephemeral port breaks every later registration.
-# hostIP: 0.0.0.0 binds the host's interfaces instead of loopback, which is what a client on
-# another machine or in another sandbox needs. Browse 127.0.0.1 rather than localhost: on
-# native Windows localhost resolves to ::1 first, and this port is IPv4.
 ports:
   - sandbox: 4780
-    host: 4780
-    protocol: tcp4
-    hostIP: 0.0.0.0
+    host: ${{ env.args.hostPort }}
+    # hostIP defaults to Loopback, which is what a hub running on this host needs. Set
+    # hostIP: 0.0.0.0 only if the hub cannot reach the loopback publish.
+    # protocol defaults to tcp4; `tcp` would also bind ::1, where nothing is listening.
 
-env:
-  DPI_PROVIDER: opencode-go          # opencode-go, opencode, deepseek, or faux (no key needed)
-  DPI_MODEL: deepseek-v4.1-flash
-  # DPI_DEVICE_NAME: my-device       # defaults to the sandbox hostname
-
-# Approve the proxy injection domains for the keys this device uses.
+# Approve the credential injection domains these two services need. Merged into your global
+# credentials.yaml; `sbx env rm --prune-bindings` would remove them for other sandboxes too.
 bindings:
   opencode:
     apiKey:
-      domains: [opencode.ai]
+      domains:
+        - opencode.ai
   deepseek:
     apiKey:
-      domains: [api.deepseek.com]
+      domains:
+        - api.deepseek.com
 
-# Runs on the host after the sandbox exists, once. It copies the device's token into this
-# machine's hub registry, so the device shows up in the hub without a manual step. Skip the
-# block when you drive the device directly with dpi-tui.
+# sandboxOptions:
+#   memory: 4g
+#   cpus: 2
+#   # The image is built locally by `just kit build`, so a locally tagged kit needs:
+#   # pullPolicy: never
+
 lifecycle:
   postCreate:
     - name: Enroll the device with the hub
-      command: ./sbx/enroll.sh durable-dev "$SBX_SANDBOX_NAME"
+      command: ${{ env.args.repo }}/sbx/enroll.sh "$SBX_SANDBOX_NAME" "$SBX_SANDBOX_NAME"
