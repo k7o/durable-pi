@@ -36,6 +36,19 @@ The clock starts when the URL prints. Measured on 2026-10-05 across 2 runs with 
 | about T+21s | Ready for review: `submit_fix` proves the test fails on main, passes on the branch, and commits |
 | T+25.3s to T+30.3s | The agent calls `deploy`, which waits for approval. The voice line plays: "Engineer, your Durable Agent Red Team found a production issue, and found the fix. It's waiting on your review." |
 
+### The same take on other providers
+
+Measured 2026-10-17, one take each, `--tts off`, `DPI_JEV_MODEL=jev-1.13`. Cost is the incident conversation's committed `pi.usage` after the deploy is approved and verified, so it covers the whole incident. Sonnet's row is the 2026-10-05 measurement above.
+
+| Agent model | Provider | Incident opens | Ready for review | Cost through deploy |
+| --- | --- | --- | --- | --- |
+| Claude Sonnet 5.5 | OpenRouter | T+5.8s | about T+21s, approval by T+30.3s | about $0.09 |
+| DeepSeek V4.1 Flash | OpenCode Go | T+6.0s, T+6.1s | T+23.3s, T+35.7s | $0.0026, $0.0031 |
+| DeepSeek V4.1 Flash | OpenCode Zen | T+6.2s | T+31.7s | $0.0064 |
+| DeepSeek V4 Pro | DeepSeek | T+6.2s | T+44.8s | $0.026 |
+
+Runs vary: the same Go model reached review in 23.3s once and 35.7s the next time, so read these as orders of magnitude, not stopwatch values. Two rows stand out. A Go key is half the price of a Zen key for the identical DeepSeek model ($0.15/$0.60 against $0.30/$1.20 per million tokens), and DeepSeek V4 Pro on the direct provider is the slowest and priciest of the four because it reasons through every step.
+
 Open the URL after the voice line. The page opens on the incident agent with **Deploy waiting for your approval** above the composer. The live take continues:
 
 1. **Cancel.** Press **Interrupt** or **Decline**. Interrupt aborts the deploy call and its durable task; Decline returns the decision to the agent. Nothing ships.
@@ -64,7 +77,7 @@ The timeline depends on Jev. Up to 6 Jev calls run at once, and 429, 502, 503 an
 | `--backlog <s>` | `300` | Rows older than this when first seen are marked skipped instead of judged |
 | `--jev-concurrency <n>` | `6` | Jev calls in flight |
 
-Example: `npm start -- --bug-at 30`. The flask icon in the top bar shows the countdown and can deploy the bug on demand. `DPI_READY_SPEECH` changes the spoken line. It plays when the agent first asks to deploy, and is synthesized at boot so it plays without delay. `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL` override the voice. One incident costs about $0.09 of Sonnet 5.5 through deploy, and Jev costs about $0.00003 per row.
+Example: `npm start -- --bug-at 30`. The flask icon in the top bar shows the countdown and can deploy the bug on demand. `DPI_READY_SPEECH` changes the spoken line. It plays when the agent first asks to deploy, and is synthesized at boot so it plays without delay. `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL` override the voice. One incident costs about $0.09 of Sonnet 5.5 through deploy, and Jev costs about $0.00003 per row on OpenRouter; on OpenCode Zen the same is about $0.000013 per row on `jev-1.13`, and the free `jev-1.13-free` runs out after a take or two.
 
 ## How it works
 

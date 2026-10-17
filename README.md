@@ -80,7 +80,7 @@ A durable agent doesn't have to wait for your prompt. [`apps/proactive-dpi-demo`
 |---|---|---|
 | **Code** | thresholds and side effects | 3 incident verdicts with one fingerprint within 120 s open an incident |
 | **Jev** | bounded judgments, one call per row | `normal`, `suspicious` or `incident` plus an impact score, in a few hundred milliseconds for about $0.00003 a row |
-| **Agent** | open-ended work | investigate, fix, prove, deploy: about $0.09 per incident with Sonnet 5.5 |
+| **Agent** | open-ended work | investigate, fix, prove, deploy: about $0.09 per incident with Sonnet 5.5, about $0.003 with DeepSeek V4.1 Flash on OpenCode Go |
 
 <p align="center">
   <img src="images/06_proactive_ui.png" alt="The proactive demo: the incident agent is ready for review and its deploy waits for approval, next to the Jev-judged event stream with incident rows highlighted" width="800">

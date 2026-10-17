@@ -37,7 +37,7 @@ With the repo's network config, `just net up local && just backend run` does the
 | `DPI_DATA_DIR` | `$DPI_HOME/backend` | catalog, app state, `sessions/`, `archive/` |
 | `DPI_HOME` | `~/.dpi` | where `backend.env` is read (set by the service unit) |
 | `DPI_ENV_FILE` | `$DPI_HOME/backend.env` | the env file to read |
-| `DPI_PROVIDER` | `openrouter` | one of `openrouter`, `deepseek`, `opencode`, `opencode-go`, `faux`. `faux` gives a free deterministic model for tests. Direct providers list the catalog pi-ai ships for them; `openrouter` lists the reviewed shortlist in `src/model-catalog.ts` |
+| `DPI_PROVIDER` | `openrouter` | one of `openrouter`, `deepseek`, `opencode`, `opencode-go`, `faux`. `faux` gives a free deterministic model for tests. Each provider's picker list lives in `src/model-catalog.ts`; OpenCode Zen is the one that lists its whole catalog |
 | `DPI_MODEL` | the provider's default | model a new session starts on. Defaults per provider are in `src/model-catalog.ts` |
 | `OPENROUTER_API_KEY` | | model access when `DPI_PROVIDER=openrouter`, required unless `DPI_PROVIDER=faux`. Without a key the device lists no models. Never sent to clients |
 | `DEEPSEEK_API_KEY` | | model access when `DPI_PROVIDER=deepseek` |
