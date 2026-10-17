@@ -69,7 +69,7 @@ Optional, so report them and continue:
 ### Step 3 — Install Dependencies
 
 1. `just install`: `npm install` in the four network apps.
-2. Ask whether to also set up the proactive demo, the video's hook: a watcher sends every log row to Jev, and a durable agent fixes the incident and waits for deploy approval. If yes, run `just proactive install`, `just proactive reset` (builds the mock checkout-api git repo with the bug) and `just proactive build`. It uses `OPENROUTER_API_KEY` for Sonnet 5.5 and Jev, and serves `http://localhost:4790` on loopback only (`--host 0.0.0.0` opts in to the LAN; the UI has no login).
+2. Ask whether to also set up the proactive demo, the video's hook: a watcher sends every log row to Jev, and a durable agent fixes the incident and waits for deploy approval. If yes, run `just proactive install`, `just proactive reset` (builds the mock checkout-api git repo with the bug) and `just proactive build`. It uses the same provider key as the backend for the agent and Jev (pass `--provider` and `--model` to change them), and serves `http://localhost:4790` on loopback only (`--host 0.0.0.0` opts in to the LAN; the UI has no login).
 
 ### Step 4 — Verify Configuration
 

@@ -1,7 +1,14 @@
 // Source: https://agenticengineer.com/model-stack, retrieved 2026-10-05.
 // Active S+, S, A and B models, matched to https://openrouter.ai/api/v1/models.
 // Gemini 4 Argon is rolling out and has no OpenRouter listing at this snapshot.
-export const curatedModels = [
+//
+// This is the OpenRouter shortlist. DeepSeek, OpenCode and OpenCode Go ship their own catalogs with
+// pi-ai, so the picker lists all of theirs rather than a hand-maintained subset here.
+import type { ProviderId } from "./provider.ts";
+
+export type CuratedModel = { id: string; name: string; tier: string; icon: string };
+
+export const curatedModels: readonly CuratedModel[] = [
   {
     id: "anthropic/claude-opus-5.5",
     name: "Claude Opus 5.5",
@@ -176,5 +183,70 @@ export const curatedModels = [
     tier: "B",
     icon: "gemini.png",
   },
-] as const;
-export const defaultModelId = "anthropic/claude-sonnet-5.5";
+];
+
+/** Providers with a shortlist show only these in the picker; the rest show their whole catalog. */
+export const curatedByProvider: Partial<Record<ProviderId, readonly CuratedModel[]>> = {
+  openrouter: curatedModels,
+};
+
+/** Used when neither `--model` nor `DPI_MODEL` names one. */
+export const defaultModelByProvider: Record<ProviderId, string> = {
+  openrouter: "anthropic/claude-sonnet-5.5",
+  deepseek: "deepseek-v4-pro",
+  opencode: "deepseek-v4.1-flash",
+  "opencode-go": "deepseek-v4.1-flash",
+};
+
+/** Vendor badge for a catalog model, which carries no icon of its own. */
+const VENDOR_ICONS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^claude|^anthropic/, "anthropic.png"],
+  [/^gpt|^o[1-9]|^openai/, "openai.png"],
+  [/^gemini|^google/, "gemini.png"],
+  [/^deepseek/, "deepseek.png"],
+  [/^glm|^z-ai/, "zai.png"],
+  [/^kimi|^moonshot/, "kimi.png"],
+  [/^qwen/, "qwen.png"],
+  [/^minimax/, "minimax.png"],
+  [/^mimo|^xiaomi/, "xiaomi.png"],
+  [/^grok|^x-ai/, "grok.png"],
+  [/^muse|^meta|^llama/, "meta.png"],
+];
+
+/** The subset of a pi-ai chat model the picker reads. */
+export type CatalogModel = {
+  id: string;
+  name: string;
+  contextWindow: number;
+  reasoning: boolean;
+  cost: { input: number; output: number };
+};
+
+/**
+ * No external ranking covers the direct providers, so their tier is a cost band on output price per
+ * million tokens: S at $10+, A at $3+, B at $1+, C below. It orders the picker, nothing more.
+ */
+function costTier(output: number): string {
+  if (output >= 10) return "S";
+  if (output >= 3) return "A";
+  if (output >= 1) return "B";
+  return "C";
+}
+
+/** A model from a direct provider's own catalog, in the shape the UI renders. */
+export function describeModel(
+  provider: ProviderId,
+  model: CatalogModel,
+): CuratedModel & CatalogModel & { provider: ProviderId } {
+  const icon = VENDOR_ICONS.find(([pattern]) => pattern.test(model.id))?.[1] ?? "lab.png";
+  return {
+    id: model.id,
+    provider,
+    name: model.name,
+    tier: costTier(model.cost.output),
+    icon,
+    contextWindow: model.contextWindow,
+    reasoning: model.reasoning,
+    cost: { input: model.cost.input, output: model.cost.output },
+  };
+}

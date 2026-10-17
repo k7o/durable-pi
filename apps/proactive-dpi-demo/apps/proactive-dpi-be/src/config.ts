@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import { projectEnvPath } from "../../../shared/paths.ts";
+import { defaultModelByProvider } from "./model-catalog.ts";
+import { isProviderId, PROVIDER_CREDENTIALS, PROVIDER_IDS, type ProviderId } from "./provider.ts";
 
-// OPENROUTER_API_KEY and ELEVENLABS_API_KEY live in the project root .env.
+// Provider API keys (OPENROUTER_API_KEY / DEEPSEEK_API_KEY / OPENCODE_API_KEY) and
+// ELEVENLABS_API_KEY live in the project root .env.
 if (existsSync(projectEnvPath)) process.loadEnvFile(projectEnvPath);
 
 const args = process.argv.slice(2);
@@ -15,12 +18,20 @@ const option = (key: string, fallback: string) => {
 const tts = option("--tts", process.platform === "darwin" ? "host" : "browser");
 if (!["host", "browser", "both", "off"].includes(tts)) throw Error("--tts is host, browser, both, or off");
 
+// One provider serves the incident agent, the Ops desk and the incident conversations.
+const provider = option("--provider", process.env.DPI_PROVIDER ?? "openrouter");
+if (!isProviderId(provider))
+  throw Error(`--provider must be one of ${PROVIDER_IDS.join(", ")} (got "${provider}")`);
+if (!process.env[PROVIDER_CREDENTIALS[provider]])
+  throw Error(`${PROVIDER_CREDENTIALS[provider]} is required for --provider ${provider}`);
+
 export const config = {
   port: Number(option("--port", "4790")),
   /** Loopback by default: the UI has no login and the incident agent runs bash. Pass --host 0.0.0.0 for a LAN. */
   host: option("--host", "127.0.0.1"),
   dev: args.includes("--dev"),
-  model: option("--model", "anthropic/claude-sonnet-5.5"),
+  provider: provider as ProviderId,
+  model: option("--model", process.env.DPI_MODEL ?? defaultModelByProvider[provider]),
   thinking: option("--thinking", "high") as "off" | "minimal" | "low" | "medium" | "high" | "xhigh",
   /** Incident verdicts sharing one fingerprint inside the window that open an incident. */
   incidentThreshold: Number(option("--incident-threshold", "3")),

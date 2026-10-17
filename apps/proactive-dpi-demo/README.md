@@ -18,7 +18,7 @@ From the project root, `just proactive` lists install, build, reset, start, take
 
 `npm start` boots the backend, starts the log stream, and prints a short banner with the URL. The terminal shows nothing else, so it can stay on camera. Process output goes to `.data/demo.log`; `--verbose` shows it instead.
 
-Keys come from the project root `.env`. `OPENROUTER_API_KEY` covers Claude Sonnet 5.5 and Jev (`~typesafe/jev-latest`). `ELEVENLABS_API_KEY` covers the voice (default voice Emma from the ElevenLabs voice library; set `ELEVENLABS_VOICE_ID` to any voice in your account). Without it the line shows only as a toast. With `--tts browser` (the default off macOS), click the page once so the browser allows audio. `TYPESAFE_API_KEY`, when set, sends Jev calls to TypeSafe directly. `npm run dev` adds Vue hot reload. `npm run logs` and `npm run be` run the two processes separately.
+Keys come from the project root `.env`. One provider serves the incident agent and the Ops desk, chosen with `--provider` (default `openrouter`, also `deepseek`, `opencode`, `opencode-go`); it needs that provider's key — `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY` or `OPENCODE_API_KEY`. Jev follows the same credentials: TypeSafe directly when `TYPESAFE_API_KEY` is set, else OpenRouter (`~typesafe/jev-latest`) or OpenCode Zen (`jev-1.13-free`). `DPI_JEV_MODEL` overrides the Jev model. `ELEVENLABS_API_KEY` covers the voice (default voice Emma from the ElevenLabs voice library; set `ELEVENLABS_VOICE_ID` to any voice in your account). Without it the line shows only as a toast. With `--tts browser` (the default off macOS), click the page once so the browser allows audio. `npm run dev` adds Vue hot reload. `npm run logs` and `npm run be` run the two processes separately.
 
 Run `npm run reset` before every take. The demo must be stopped first.
 
@@ -54,7 +54,8 @@ The timeline depends on Jev. Up to 6 Jev calls run at once, and 429, 502, 503 an
 | `--incident-threshold <n>` | `3` | Incident verdicts (probability 0.6 or more) with one fingerprint that open an incident |
 | `--suspicious-threshold <n>` | `8` | Suspicious verdicts with one fingerprint that open an incident |
 | `--window <s>` | `120` | Window for both thresholds |
-| `--model <id>` | `anthropic/claude-sonnet-5.5` | Agent model (OpenRouter). Switchable per conversation in the UI |
+| `--provider <id>` | `openrouter` | Agent provider: `openrouter`, `deepseek`, `opencode` (OpenCode Zen) or `opencode-go`. Needs that provider's key |
+| `--model <id>` | the provider's default | Agent model. Switchable per conversation in the UI |
 | `--thinking <level>` | `high` | Agent thinking level |
 | `--verbose` | off | Show process output in the terminal |
 | `--log-rows` | off | Print every log row (with `--verbose`) |
@@ -71,7 +72,7 @@ Example: `npm start -- --bug-at 30`. The flask icon in the top bar shows the cou
    - At `--bug-at` it writes two deploy rows and routes checkout to 00042. Three guest checkouts follow 200ms apart and throw a real `TypeError` with a real stack trace.
    - It also rolls out any revision the deploy task requests, built from the incident branch commit.
 2. **The watcher** in proactive-dpi-be tails the store and makes one Jev call per row, a `choice` verdict plus an `impact` score. It stores the verdict in `.data/watch.sqlite`. Code owns the thresholds; Jev owns the judgment.
-3. **Opening an incident** is one Durable Pi commit. It writes the incident to the session document `ops.incidents` and creates an ownerless conversation with the `--model` (Sonnet 5.5 by default), the coding tools (`read`, `write`, `edit`, `bash`), the ops tools (`query_logs`, `log_summary`, `list_incidents`, `update_incident`, `submit_fix`, `deploy`), and the incident playbook. The Ops desk has only the first three ops tools. Its `cwd` is the incident worktree. The backend creates `workspace/incidents/inc-000N` on branch `incident/inc-000N`, then submits the brief (flagged rows and stack trace) with request ID `incident:<id>:brief`.
+3. **Opening an incident** is one Durable Pi commit. It writes the incident to the session document `ops.incidents` and creates an ownerless conversation with the `--model` (Claude Sonnet 5.5 by default on OpenRouter), the coding tools (`read`, `write`, `edit`, `bash`), the ops tools (`query_logs`, `log_summary`, `list_incidents`, `update_incident`, `submit_fix`, `deploy`), and the incident playbook. The Ops desk has only the first three ops tools. Its `cwd` is the incident worktree. The backend creates `workspace/incidents/inc-000N` on branch `incident/inc-000N`, then submits the brief (flagged rows and stack trace) with request ID `incident:<id>:brief`.
 4. **The incident agent** works the timeline in order. Tool calls run sequentially, so the chat reads like the timeline:
    - `update_incident investigating`, `log_summary`, and `query_logs`
    - `git show` and `read`

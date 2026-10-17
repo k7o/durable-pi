@@ -1,4 +1,5 @@
-// Minimal Jev client: TypeSafe System One directly, or through OpenRouter's decisions endpoint.
+// Minimal Jev client: TypeSafe System One directly, or through OpenRouter's or OpenCode Zen's
+// re-served System One endpoint.
 export type ChoiceAnswer = {
   type: "choice";
   choice: string;
@@ -24,23 +25,29 @@ export type JevResult = {
 const RETRY = new Set([429, 502, 503, 529]);
 
 export class Jev {
-  readonly provider: "typesafe" | "openrouter";
+  readonly provider: "typesafe" | "openrouter" | "opencode";
   private readonly endpoint: string;
   private readonly key: string;
   private readonly model: string;
 
   constructor() {
+    const model = process.env.DPI_JEV_MODEL;
     if (process.env.TYPESAFE_API_KEY) {
       this.provider = "typesafe";
       this.endpoint = "https://api.typesafe.ai/v1/systemone";
       this.key = process.env.TYPESAFE_API_KEY;
-      this.model = "jev-latest";
+      this.model = model ?? "jev-latest";
     } else if (process.env.OPENROUTER_API_KEY) {
       this.provider = "openrouter";
       this.endpoint = "https://openrouter.ai/api/alpha/decisions";
       this.key = process.env.OPENROUTER_API_KEY;
-      this.model = "~typesafe/jev-latest";
-    } else throw Error("Jev needs TYPESAFE_API_KEY or OPENROUTER_API_KEY");
+      this.model = model ?? "~typesafe/jev-latest";
+    } else if (process.env.OPENCODE_API_KEY) {
+      this.provider = "opencode";
+      this.endpoint = "https://opencode.ai/inference/v1/systemone";
+      this.key = process.env.OPENCODE_API_KEY;
+      this.model = model ?? "jev-1.13-free";
+    } else throw Error("Jev needs TYPESAFE_API_KEY, OPENROUTER_API_KEY or OPENCODE_API_KEY");
   }
 
   async ask(state: unknown, questions: Record<string, Question>): Promise<JevResult> {

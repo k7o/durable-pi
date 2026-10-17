@@ -4,7 +4,6 @@ import { EventEmitter } from "node:events";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
 import {
   Harness,
   configure,
@@ -22,7 +21,8 @@ import { lockFile } from "../../../shared/lock.ts";
 import type { Deploy, Incident } from "../../../shared/types.ts";
 import { config } from "./config.ts";
 import { Deploys, Incidents, createExtensions, logLine } from "./extensions.ts";
-import { curatedModels } from "./model-catalog.ts";
+import { curatedByProvider, describeModel } from "./model-catalog.ts";
+import { providerFor } from "./provider.ts";
 import { ensureWorktree } from "./repo.ts";
 import type { Voice } from "./voice.ts";
 import type { WatchStore } from "./watch-store.ts";
@@ -47,15 +47,20 @@ export class Ops extends EventEmitter {
 
   static async open(store: WatchStore, voice: Voice) {
     const models = createModels();
-    const provider = openrouterProvider();
+    const provider = providerFor(config.provider);
     const catalog = provider.getModels();
     if (!catalog.some((m) => m.id === config.model))
-      throw Error(`OpenRouter has no model ${config.model}`);
-    models.setProvider({
-      ...provider,
-      getModels: () =>
-        catalog.filter((m) => m.id === config.model || curatedModels.some((c) => c.id === m.id)),
-    });
+      throw Error(`${config.provider} has no model ${config.model}`);
+    const shortlist = curatedByProvider[config.provider];
+    models.setProvider(
+      shortlist
+        ? {
+            ...provider,
+            getModels: () =>
+              catalog.filter((m) => m.id === config.model || shortlist.some((c) => c.id === m.id)),
+          }
+        : provider,
+    );
     let ops: Ops | undefined;
     const extensions = createExtensions({
       store,
@@ -92,7 +97,7 @@ export class Ops extends EventEmitter {
       );
       const root = await harness.root(ctx, {
         agent: {
-          model: { provider: "openrouter", modelId: config.model },
+          model: { provider: config.provider, modelId: config.model },
           thinkingLevel: config.thinking,
           extensions: [extensions.OpsTools, extensions.Desk],
           cwd: repoDir,
@@ -140,7 +145,7 @@ export class Ops extends EventEmitter {
       const branch = `incident/${slug}`;
       const conversation = await tx.createConversation({ ownership: { kind: "ownerless" } });
       await configure(tx, conversation.id, {
-        model: { provider: "openrouter", modelId: config.model },
+        model: { provider: config.provider, modelId: config.model },
         thinkingLevel: config.thinking,
         extensions: [CodingTools, this.extensions.OpsTools, this.extensions.IncidentAgent],
         cwd: worktree,
@@ -246,12 +251,16 @@ Your worktree ${incident.worktree} is checkout-api on branch ${incident.branch},
   }
 
   modelList() {
-    return curatedModels.flatMap((c) => {
-      const m = this.models.getModel("openrouter", c.id);
-      return m
-        ? [{ id: m.id, provider: "openrouter", name: c.name, tier: c.tier, icon: c.icon, contextWindow: m.contextWindow }]
-        : [];
-    });
+    const provider = config.provider;
+    const shortlist = curatedByProvider[provider];
+    if (shortlist)
+      return shortlist.flatMap((c) => {
+        const m = this.models.getModel(provider, c.id);
+        return m
+          ? [{ id: m.id, provider, name: c.name, tier: c.tier, icon: c.icon, contextWindow: m.contextWindow }]
+          : [];
+      });
+    return this.models.getModels(provider).map((m) => describeModel(provider, m));
   }
 
   async action(cid: number, action: string, body: Record<string, unknown>) {
@@ -284,7 +293,7 @@ Your worktree ${incident.worktree} is checkout-api on branch ${incident.branch},
         };
       case "configure": {
         const model = body.model as ModelRef | undefined;
-        if (model && (model.provider !== "openrouter" || !this.models.getModel("openrouter", model.modelId)))
+        if (model && (model.provider !== config.provider || !this.models.getModel(config.provider, model.modelId)))
           throw Error("Choose a model from the list");
         if (body.thinkingLevel !== undefined && !THINKING.includes(String(body.thinkingLevel)))
           throw Error("Invalid thinking level");
