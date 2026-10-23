@@ -1,6 +1,6 @@
 # dpi-backend on this machine. Remote devices run it as a service (see `just net`).
 
-set shell := ["zsh", "-cu"]
+set shell := ["bash", "-uc"]
 set positional-arguments
 set working-directory := "../../apps/dpi-backend"
 

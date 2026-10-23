@@ -1,6 +1,6 @@
 # Test suites. Device suites use a real model and cost money; `unit` and `ui` do not.
 
-set shell := ["zsh", "-cu"]
+set shell := ["bash", "-uc"]
 set positional-arguments
 
 # List test commands

@@ -1,6 +1,6 @@
 # The playground hub and web client: http://localhost:4781.
 
-set shell := ["zsh", "-cu"]
+set shell := ["bash", "-uc"]
 set positional-arguments
 set working-directory := "../../apps/dpi-playground"
 

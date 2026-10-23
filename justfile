@@ -1,7 +1,7 @@
 # Durable Pi. Recipes are grouped by work area under just/<group>/mod.just.
 # Device recipes take an id from dpi-network.yaml; nothing here names a machine.
 set dotenv-load := true
-set shell := ["zsh", "-cu"]
+set shell := ["bash", "-uc"]
 
 # Devices: up, deploy, status, logs, restart
 mod net 'just/net'

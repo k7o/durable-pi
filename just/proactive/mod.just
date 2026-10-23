@@ -1,7 +1,7 @@
 # Proactive DPI demo: Jev log watcher and durable incident agents.
 # Every recipe runs in apps/proactive-dpi-demo.
 
-set shell := ["zsh", "-cu"]
+set shell := ["bash", "-uc"]
 set working-directory := "../../apps/proactive-dpi-demo"
 
 port := "4790"
