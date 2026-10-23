@@ -14,7 +14,7 @@ collapse are both in. Implement in slices, one commit each.
 |---|---|---|
 | 0 · Contract snapshot | done | `tests/contracts.test.ts` (4 tests): the 11 tool names in order, `JOB_DEFS` ids and each job's phase ids in order, `AGENT_DOC_KINDS`/`DEVICE_DOC_KINDS`, and the prompt table's keys in offered order (third commit); swapping two tools in `extensions.ts` fails it; no production change; `npm run check` clean, 53/53 tests pass |
 | 1 · Prompt text out | done | `src/prompt.ts`: `PLAYGROUND_SECTION` (1,764 chars of text; the audit's 1,777 counted the indented source line) and `TOOL_DESCRIPTIONS` for all 11 tools in offered order; `extensions.ts` 581 → 571 lines; every description and the section are byte-identical to the literals they replaced; the contract test needed no change; `npm run check` clean, 53/53 tests pass |
-| 2 · Feature contract | todo | `features/feature.ts`, `features/jobs/types.ts`; types only, no moves |
+| 2 · Feature contract | done | `features/feature.ts` (`Feature`, with the TS-101 `AnyDoc` alias and pi-durable's own `AnyTask`), `features/jobs/types.ts` (`Phase`, `Handler`, `Outcome`, `JobModule`); types only, imported by nothing; `npm run check` clean, 53/53 tests pass |
 | 3 · Jobs by job | todo | `features/jobs/{workspace-snapshot,release-check,change-watch,todo-digest,approval}.ts`, `defs.ts`; `jobs.ts` is a re-export shim |
 | 4 · Phase runtime | todo | `features/jobs/runtime.ts`; `jobs.ts` deleted |
 | 5 · Tools by feature | todo | `features/{app-state,todos,history,sessions,jobs,side-effects}/`; `playground.ts` assembles |
