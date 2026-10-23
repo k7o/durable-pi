@@ -21,9 +21,6 @@ import type {
   WireEntry,
 } from "../../dpi-sdk/src/api.js";
 import {
-  compactionFits,
-  DEFAULT_COMPACTION,
-  defaultCompaction,
   THINKING_LEVELS,
   type CompactionSettings,
 } from "../../dpi-sdk/src/api.js";
@@ -38,6 +35,7 @@ import { homedir, hostname, platform } from "node:os";
 import { randomUUID } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx, withAbortSignal } from "@earendil-works/chord/context";
 import { Models } from "./models.js";
+import { Compaction } from "./compaction.js";
 import { type ProviderId } from "./provider.js";
 import {
   Harness,
@@ -103,8 +101,6 @@ export class Store {
   readonly uid: string;
   shared!: SharedState;
   private unlockShared?: () => void;
-  /** Saved thresholds per session; null when the session uses the defaults for its model. */
-  private compactions = new Map<string, Partial<CompactionSettings> | null>();
   /** Task labels never change once known: tool names of pi.tool tasks, job titles of job runs. */
   private taskLabels = new Map<string, { label?: string; callId?: string }>();
 
@@ -132,6 +128,7 @@ export class Store {
     readonly catalog: Catalog,
     readonly changes: ChangeFeed,
     readonly models: Models,
+    readonly compaction: Compaction,
   ) {
     this.uid = catalog.deviceUid;
   }
@@ -143,7 +140,8 @@ export class Store {
     const changes = new ChangeFeed();
     const catalog = await Catalog.open(resolved.dataDir, changes);
     const models = await Models.open(resolved.provider, resolved.defaultModel);
-    const store = new Store(resolved, catalog, changes, models);
+    const compaction = new Compaction(catalog, models);
+    const store = new Store(resolved, catalog, changes, models, compaction);
     try {
       store.unlockShared = lockFile(`${store.sharedStatePath}.lock`);
       store.shared = await SharedState.open(store.sharedStatePath);
@@ -344,6 +342,7 @@ export class Store {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     }
     this.catalog.forgetSession(row.id);
+    this.compaction.forget(row.id);
     this.errors.delete(row.id);
     return { archived: target };
   }
@@ -363,7 +362,7 @@ export class Store {
       const registry = createRegistry();
       registry.install(withWrites(CodingTools, CODING_WRITES));
       const jobs = createJobs({ shared: this.shared, sessionId: row.id });
-      const compaction = () => this.compactionOf(row.id);
+      const thresholds = () => this.compaction.get(row.id);
       const playground = createPlayground(this.shared, row.id, this.spawnSession, jobs);
       registry.install(playground);
       // Custom extensions are installed but not selected: an agent turns them on in its own selection.
@@ -384,7 +383,7 @@ export class Store {
             extensions: [CodingTools, playground],
             // Read at every use, so a PATCH .../compaction applies from the next request.
             get compaction() {
-              return compaction();
+              return thresholds();
             },
             progress: { partialIntervalMs: 100, outputIntervalMs: 100 },
           },
@@ -642,11 +641,7 @@ export class Store {
     );
     if (model && (c.id as number) === 1) this.catalog.setSessionModel(row.id, model);
     // Thresholds are shared by the session's agents; refit them when this model's window is too small for them.
-    const window = model ? this.windowOf(model.modelId) : 0;
-    if (window && !compactionFits(window, this.compactionOf(row.id))) {
-      const fitted = defaultCompaction(window);
-      this.setCompaction(row, { reserveTokens: fitted.reserveTokens, backgroundTokens: fitted.backgroundTokens });
-    }
+    if (model) this.compaction.refitFor(row.id, model.modelId);
     this.notify();
     return (await this.agentDetail(row, c)).config;
   }
@@ -844,31 +839,12 @@ export class Store {
 
   /** Saved thresholds, or the defaults for the session model's window (200k background, 250k wait when it fits). */
   compactionOf(sessionId: string): CompactionSettings {
-    if (!this.compactions.has(sessionId)) this.compactions.set(sessionId, this.catalog.compactionSettings(sessionId));
-    const saved = this.compactions.get(sessionId);
-    if (saved) return { ...DEFAULT_COMPACTION, ...saved };
-    return defaultCompaction(this.windowOf(this.catalog.getSession(sessionId)?.model ?? ""));
+    return this.compaction.get(sessionId);
   }
 
   /** Validate and store new thresholds; pi-durable reads them at its next use, so they apply from the next request. */
   setCompaction(row: SessionRow, body: Record<string, unknown>): CompactionSettings {
-    const next = this.compactionOf(row.id);
-    const int = (key: "reserveTokens" | "backgroundTokens" | "keepRecentTokens", min: number, max: number) => {
-      if (body[key] === undefined) return;
-      const n = Number(body[key]);
-      if (!Number.isInteger(n) || n < min || n > max) throw invalid(`${key} must be an integer from ${min} to ${max}`);
-      next[key] = n;
-    };
-    if (body.enabled !== undefined) {
-      if (typeof body.enabled !== "boolean") throw invalid("enabled must be a boolean");
-      next.enabled = body.enabled;
-    }
-    int("reserveTokens", 1024, 1_000_000);
-    int("backgroundTokens", 0, 1_000_000);
-    int("keepRecentTokens", 500, 200_000);
-    this.catalog.setCompactionSettings(row.id, next);
-    this.compactions.set(row.id, next);
-    return { ...next };
+    return this.compaction.set(row, body);
   }
 
   /** Name every pi.tool task by its tool and every job run by its title, so a task list reads like the transcript. */

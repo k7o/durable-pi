@@ -106,9 +106,10 @@ export class Catalog {
     this.changes.notify();
   }
 
-  /** Drop the session row and its agent names. The session's files are moved elsewhere first. */
+  /** Drop the session row, its agent names and its saved thresholds. The session's files move elsewhere first. */
   forgetSession(id: string): void {
     this.db.prepare("DELETE FROM conversation_names WHERE sessionId=?").run(id);
+    this.db.prepare("DELETE FROM session_compaction WHERE sessionId=?").run(id);
     this.db.prepare("DELETE FROM sessions WHERE id=?").run(id);
     this.changes.notify();
   }
