@@ -172,7 +172,7 @@ export async function sessionStream(store: Store, row: SessionRow, res: Response
     push();
   });
   const push = coalesce(async () => {
-    if (sse.closed || !store.opened.has(row.id)) return;
+    if (sse.closed || !store.isOpen(row.id)) return;
     sse.sendIfChanged("agents", { type: "agents", agents: await store.agents(row, tasks) });
     sse.sendIfChanged("usage", { type: "usage", usage: await store.usage(h) });
   }, 250);

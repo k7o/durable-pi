@@ -29,8 +29,8 @@ import { ApiFault, invalid, notFound } from "./errors.js";
 import { lockFile } from "./locks.js";
 import { ChangeFeed } from "./changes.js";
 import { Catalog, type SessionRow } from "./catalog.js";
-import { mkdir, readdir, realpath, rename as renamePath, stat } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
+import { mkdir, realpath, stat } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { homedir, hostname, platform } from "node:os";
 import { randomUUID } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx, withAbortSignal } from "@earendil-works/chord/context";
@@ -39,7 +39,6 @@ import { Compaction } from "./compaction.js";
 import { type ProviderId } from "./provider.js";
 import {
   Harness,
-  createRegistry,
   InboxDoc,
   type Conversation,
   type ConversationId,
@@ -50,16 +49,13 @@ import {
   type ModelRef,
   type ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
-import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
-import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
-import { createPlayground, Workspace, type SpawnSession } from "./extensions.js";
-import { createJobs, JobRuns, JOB_DEFS, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
-import { Todos } from "./todos.js";
-import { ADDON_INFO, createAddons, PROMPTS, PromptChecklist, type Addons } from "./addons.js";
+import { type SpawnSession } from "./extensions.js";
+import { JobRuns, JOB_DEFS, jobDef, resolveJobInput } from "./jobs.js";
+import { ADDON_INFO, PROMPTS, PromptChecklist } from "./addons.js";
 import { Documents } from "./documents.js";
+import { SessionRuntime } from "./session-runtime.js";
 export { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "./documents.js";
-import { writes, withWrites, CODING_WRITES } from "./tool-policy.js";
+import { writes } from "./tool-policy.js";
 
 export const DURABLE_VERSION = "1.0.3";
 
@@ -78,7 +74,6 @@ export interface StoreOptions {
 /** apps/dpi-backend/src → the checkout root. */
 const CODE_DIR = resolve(import.meta.dirname, "../../..");
 
-type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void; jobs: Jobs; addons: Addons };
 type Resolved = { row: SessionRow; h: Harness; c: Conversation };
 
 const encodeCursor = (cursor: unknown) =>
@@ -93,12 +88,11 @@ const decodeCursor = (cursor?: string) => {
 };
 
 export class Store {
-  readonly opened = new Map<string, Opened>();
-  readonly errors = new Map<string, string>();
   readonly startedAt = Date.now();
   readonly uid: string;
   shared!: SharedState;
   documents!: Documents;
+  sessions!: SessionRuntime;
   private unlockShared?: () => void;
   /** Task labels never change once known: tool names of pi.tool tasks, job titles of job runs. */
   private taskLabels = new Map<string, { label?: string; callId?: string }>();
@@ -145,17 +139,23 @@ export class Store {
       store.unlockShared = lockFile(`${store.sharedStatePath}.lock`);
       store.shared = await SharedState.open(store.sharedStatePath);
       store.documents = new Documents(store.shared);
+      store.sessions = new SessionRuntime({
+        catalog,
+        models,
+        compaction,
+        changes,
+        shared: store.shared,
+        spawn: store.spawnSession,
+        archiveDir: store.archiveDir,
+        startDirs: store.startDirs,
+        name: store.name,
+        offline: resolved.provider === "faux",
+      });
       store.shared.harness.subscribeCommits(() => store.notify());
-      for (const row of store.list()) {
-        try {
-          await store.openAgent(row);
-        } catch (e) {
-          store.errors.set(row.id, String(e instanceof Error ? e.message : e));
-        }
-      }
+      await store.sessions.openAll(store.list());
       if (!(await store.shared.initialized()))
         await store.shared.initialize({ goal: "Explore durable agents", counter: 0, notes: [] });
-      for (const { harness } of store.opened.values()) harness.resume();
+      for (const { harness } of store.sessions.opened.values()) harness.resume();
       return store;
     } catch (e) {
       await store.close().catch(() => {});
@@ -202,36 +202,12 @@ export class Store {
   // ------------------------------------------------------------ directories
 
   async directories(): Promise<DirListing> {
-    const dirs: { name: string; path: string }[] = [];
-    for (const root of this.startDirs) {
-      try {
-        dirs.push({ name: root, path: await realpath(root) });
-      } catch {}
-    }
-    return { path: "", dirs };
+    return this.sessions.directories();
   }
 
   async browse(path: string): Promise<DirListing> {
     if (!path) return this.directories();
-    const expanded = path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
-    let real: string;
-    try {
-      real = await realpath(resolve(expanded));
-      if (!(await stat(real)).isDirectory()) throw Error();
-    } catch {
-      throw notFound(`Not a directory on ${this.name}: ${path}`);
-    }
-    const dirs: { name: string; path: string }[] = [];
-    try {
-      for (const entry of await readdir(real, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name.startsWith(".") || entry.name === "node_modules") continue;
-        dirs.push({ name: entry.name, path: join(real, entry.name) });
-      }
-    } catch (e) {
-      throw new ApiFault("unavailable", `Cannot list ${real}: ${(e as Error).message}`);
-    }
-    dirs.sort((a, b) => a.name.localeCompare(b.name));
-    return { path: real, parent: dirname(real) !== real ? dirname(real) : undefined, dirs: dirs.slice(0, 500) };
+    return this.sessions.browse(path);
   }
 
   // ------------------------------------------------------------ sessions
@@ -257,9 +233,11 @@ export class Store {
   }
 
   harness(row: SessionRow) {
-    const h = this.opened.get(row.id)?.harness;
-    if (!h) throw new ApiFault("unavailable", this.errors.get(row.id) ?? `Session ${row.name} is unavailable`);
-    return h;
+    return this.sessions.harness(row);
+  }
+
+  isOpen(sessionId: string) {
+    return this.sessions.isOpen(sessionId);
   }
 
   /** `spawnKey` records which tool call created the session, in the same transaction as the session row. */
@@ -320,117 +298,15 @@ export class Store {
 
   /** Stop all work, close the harness and move its files to archive/. Nothing is deleted. */
   async archive(row: SessionRow) {
-    const opened = this.opened.get(row.id);
-    if (opened) {
-      for (const record of await this.scanAll(opened.harness)) {
-        const c = await opened.harness.conversation(record.id, ctx);
-        if (c) await c.abort(ctx, { background: true }).catch(() => {});
-      }
-      opened.unsubscribe();
-      try {
-        await opened.harness.close(ctx);
-      } finally {
-        opened.unlock();
-      }
-      this.opened.delete(row.id);
-    }
-    await mkdir(this.archiveDir, { recursive: true });
-    const target = join(this.archiveDir, `${row.id}-${Date.now()}`);
-    try {
-      await renamePath(dirname(row.dbPath), target);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-    }
-    this.catalog.forgetSession(row.id);
-    this.compaction.forget(row.id);
-    this.errors.delete(row.id);
-    return { archived: target };
+    return this.sessions.archive(row);
   }
 
   async openAgent(row: SessionRow, create = false, thinkingLevel: ThinkingLevel = "low") {
-    const current = this.opened.get(row.id);
-    if (current) return current.harness;
-    if (!create) await stat(row.dbPath);
-    await mkdir(dirname(row.dbPath), { recursive: true });
-    const unlock = lockFile(`${row.dbPath}.lock`);
-    try {
-      const shellEnv = Object.fromEntries(
-        ["PATH", "HOME", "USER", "SHELL", "TMPDIR", "LANG", "TERM"].flatMap((k) =>
-          process.env[k] ? [[k, process.env[k]]] : [],
-        ),
-      );
-      const registry = createRegistry();
-      registry.install(withWrites(CodingTools, CODING_WRITES));
-      const jobs = createJobs({ shared: this.shared, sessionId: row.id });
-      const thresholds = () => this.compaction.get(row.id);
-      const playground = createPlayground(this.shared, row.id, this.spawnSession, jobs);
-      registry.install(playground);
-      // Custom extensions are installed but not selected: an agent turns them on in its own selection.
-      const addons = createAddons({ offline: this.options.provider === "faux" });
-      for (const extension of addons.list) registry.install(extension);
-      const harness = await Harness.open(
-        await openNodeSqliteStorage(row.dbPath),
-        {
-          models: this.models.engine,
-          registry,
-          env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? row.cwd, shellEnv }),
-          conversationCreated: async (tx, c) => {
-            await tx.doc(Workspace, c.id);
-            await tx.doc(JobRuns, c.id);
-            await tx.doc(Todos, c.id);
-          },
-          settings: {
-            extensions: [CodingTools, playground],
-            // Read at every use, so a PATCH .../compaction applies from the next request.
-            get compaction() {
-              return thresholds();
-            },
-            progress: { partialIntervalMs: 100, outputIntervalMs: 100 },
-          },
-          onReport: (e) => console.error("[durable]", String(e)),
-        },
-        ctx,
-      );
-      await harness.root(ctx, {
-        agent: {
-          cwd: row.cwd,
-          model: { provider: row.provider, modelId: row.model },
-          thinkingLevel,
-        },
-      });
-      // Route stored agent choices to this device's provider before recovery issues any request.
-      for (const record of await this.scanAll(harness)) {
-        const conversation = (await harness.conversation(record.id, ctx))!;
-        const previous = (await conversation.agent(ctx)).model;
-        const routed = this.routedModel(previous);
-        if (previous?.provider !== routed.provider || previous.modelId !== routed.modelId)
-          await conversation.configure({ model: routed }, ctx);
-      }
-      const rootModel = (await (await harness.root(ctx)).agent(ctx)).model!;
-      row.provider = rootModel.provider;
-      row.model = rootModel.modelId;
-      this.catalog.setSessionModel(row.id, { provider: row.provider, modelId: row.model });
-      const unsubscribe = harness.subscribeCommits(() => this.notify());
-      this.opened.set(row.id, { harness, unlock, unsubscribe, jobs, addons });
-      this.errors.delete(row.id);
-      if (create) harness.resume();
-      return harness;
-    } catch (e) {
-      unlock();
-      throw e;
-    }
+    return this.sessions.open(row, create, thinkingLevel);
   }
 
   async scanAll(h: Harness): Promise<ConversationRecord[]> {
-    return h.commit(async (tx) => {
-      let page = await tx.scanConversations({}, 1000);
-      const records = [...page.items];
-      while (page.next) {
-        page = await tx.scanConversations({}, 1000, page.next);
-        records.push(...page.items);
-      }
-      return records;
-    }, ctx);
+    return this.sessions.scanAll(h);
   }
 
   // ------------------------------------------------------------ agents
@@ -747,7 +623,7 @@ export class Store {
   }
 
   async preview(row: SessionRow, agentId: number) {
-    const h = this.opened.get(row.id)?.harness;
+    const h = this.sessions.isOpen(row.id) ? this.sessions.harness(row) : undefined;
     const c = h ? await h.conversation(agentId as ConversationId, ctx) : undefined;
     if (!c) return undefined;
     return lastAssistantText(await this.activeEntries(c))?.slice(0, 200);
@@ -802,7 +678,7 @@ export class Store {
     if (typeof body.enabled !== "boolean") throw invalid("enabled must be a boolean");
     const enabled = body.enabled;
     if (typeof body.name === "string") {
-      const extension = this.opened.get(row.id)?.addons.all[body.name];
+      const extension = this.sessions.addons(row).all[body.name];
       if (!extension) throw invalid(`Unknown extension ${body.name}. Known: ${ADDON_INFO.map((a) => a.name).join(", ")}`);
       // An array is the agent's whole selection. An { add | remove } object would edit the host default instead and
       // replace the previous edit, so turning one extension on would turn the other off.
@@ -886,8 +762,13 @@ export class Store {
   }
 
   async sessionSummary(row: SessionRow): Promise<SessionSummary> {
-    if (!this.opened.has(row.id))
-      return { ...this.sessionSummaryBase(row), busy: false, agents: [], error: this.errors.get(row.id) ?? "Session unavailable" };
+    if (!this.sessions.isOpen(row.id))
+      return {
+        ...this.sessionSummaryBase(row),
+        busy: false,
+        agents: [],
+        error: this.sessions.errors.get(row.id) ?? "Session unavailable",
+      };
     const agents = await this.agents(row);
     return { ...this.sessionSummaryBase(row), busy: agents.some((a) => a.busy), agents };
   }
@@ -935,8 +816,8 @@ export class Store {
     } catch (e) {
       throw invalid((e as Error).message);
     }
-    const jobs = this.opened.get(row.id)?.jobs;
-    if (!jobs) throw new ApiFault("unavailable", "Session is not open");
+    if (!this.sessions.isOpen(row.id)) throw new ApiFault("unavailable", "Session is not open");
+    const jobs = this.sessions.jobs(row);
     const taskId = await c.commit(async (tx) => {
       const id = await jobs.start(tx, c.id, { def, input, startedBy: "you", now: Date.now() });
       await tx.appendEntry(c.id, { kind: "demo.job", data: { taskId: id as number, job: def.id, text: `Started ${def.title}` } });
@@ -969,15 +850,7 @@ export class Store {
   // ------------------------------------------------------------ lifecycle
 
   async close() {
-    for (const { harness, unlock, unsubscribe } of this.opened.values()) {
-      unsubscribe();
-      try {
-        await harness.close(ctx);
-      } finally {
-        unlock();
-      }
-    }
-    this.opened.clear();
+    await this.sessions?.close();
     await this.shared?.close();
     this.unlockShared?.();
     await this.catalog.close();
