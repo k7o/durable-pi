@@ -5,6 +5,8 @@
 //   "jobs?"        → one list_durable_jobs call
 //   "job: <id>[ <input json>][ wait]" → one run_durable_job call (wait: the call waits for the run)
 //   "check:[ <task id>|<job id>]" → one check_durable_job call
+//   "todos?"        → one todo call listing the conversation's todo list
+//   "todo: <action> [text|id]" → one todo call: add <text>, complete/reopen/remove <id>
 //   "search: <words>" → one search_history call
 //   "page: <summary>" → one ping_on_call_engineer call
 //   "Release check: …" (the release-check job's subagent) → one bash call
@@ -66,6 +68,12 @@ export function installFaux(models: MutableModels) {
     if (prompt.startsWith("check:")) {
       const ref = prompt.slice(6).trim();
       return call("check_durable_job", /^\d+$/.test(ref) ? { task_id: Number(ref) } : ref ? { job: ref } : {});
+    }
+    if (prompt === "todos?") return call("todo", { action: "list" });
+    if (prompt.startsWith("todo:")) {
+      const [action = "list", ...rest] = prompt.slice(5).trim().split(/\s+/);
+      const arg = rest.join(" ");
+      return call("todo", { action, ...(action === "add" ? { text: arg } : { id: arg }) });
     }
     if (prompt.startsWith("search:")) return call("search_history", { query: prompt.slice(7).trim() });
     if (prompt.startsWith("page:")) return call("ping_on_call_engineer", { summary: prompt.slice(5).trim() });

@@ -59,6 +59,7 @@ import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { createPlayground, Workspace, type SpawnSession } from "./extensions.js";
 import { createJobs, JobRuns, JOB_DEFS, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
+import { Todos, TODOS_DOC } from "./todos.js";
 import { ADDON_INFO, createAddons, PROMPTS, PromptChecklist, type Addons } from "./addons.js";
 import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
 
@@ -98,7 +99,7 @@ export interface StoreOptions {
 /** Agent documents a client may read or stream, by kind. */
 /** apps/dpi-backend/src → the checkout root. */
 const CODE_DIR = resolve(import.meta.dirname, "../../..");
-const AGENT_DOCS = { [JOB_RUNS_DOC]: JobRuns, "demo.workspace": Workspace } as const;
+const AGENT_DOCS = { [JOB_RUNS_DOC]: JobRuns, [TODOS_DOC]: Todos, "demo.workspace": Workspace } as const;
 export const AGENT_DOC_KINDS = Object.keys(AGENT_DOCS);
 export const DEVICE_DOC_KINDS = ["app.shared-state"];
 
@@ -525,6 +526,7 @@ export class Store {
           conversationCreated: async (tx, c) => {
             await tx.doc(Workspace, c.id);
             await tx.doc(JobRuns, c.id);
+            await tx.doc(Todos, c.id);
           },
           settings: {
             extensions: [CodingTools, playground],
@@ -935,7 +937,8 @@ export class Store {
     const token = AGENT_DOCS[kind as keyof typeof AGENT_DOCS];
     if (!token) throw notFound(`Unknown agent document ${kind}. Known: ${AGENT_DOC_KINDS.join(", ")}`);
     const value = await h.snapshot(token as typeof JobRuns, c.id, ctx);
-    return JSON.parse(JSON.stringify(value ?? (kind === JOB_RUNS_DOC ? { counts: {}, items: {} } : {}))) as unknown;
+    const empty = kind === JOB_RUNS_DOC ? { counts: {}, items: {} } : kind === TODOS_DOC ? { items: [] } : {};
+    return JSON.parse(JSON.stringify(value ?? empty)) as unknown;
   }
 
   async deviceDoc(kind: string) {
