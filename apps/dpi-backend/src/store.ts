@@ -3,7 +3,6 @@ import type { StateChange } from "../../dpi-sdk/src/app-state.js";
 import type {
   AgentDetail,
   AgentExtensions,
-  AgentRef,
   AgentSummary,
   CreateSessionBody,
   DeviceInfo,
@@ -41,18 +40,18 @@ import {
   type Conversation,
   type ConversationId,
   type ConversationRecord,
-  type EntryId,
   type ModelRef,
-  type ToolRegistration,
 } from "@earendil-works/pi-durable";
 import { type SpawnSession } from "./extensions.js";
+import type { Resolved } from "./agents.js";
 import { JobRuns, JOB_DEFS, jobDef, resolveJobInput } from "./jobs.js";
 import { ADDON_INFO, PROMPTS, PromptChecklist } from "./addons.js";
 import { Documents } from "./documents.js";
 import { SessionRuntime } from "./session-runtime.js";
 import { Conversations } from "./conversations.js";
+import { Agents } from "./agents.js";
+export type { Resolved } from "./agents.js";
 export { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "./documents.js";
-import { writes } from "./tool-policy.js";
 
 export const DURABLE_VERSION = "1.0.3";
 
@@ -71,7 +70,6 @@ export interface StoreOptions {
 /** apps/dpi-backend/src → the checkout root. */
 const CODE_DIR = resolve(import.meta.dirname, "../../..");
 
-type Resolved = { row: SessionRow; h: Harness; c: Conversation };
 
 export class Store {
   readonly startedAt = Date.now();
@@ -79,6 +77,7 @@ export class Store {
   shared!: SharedState;
   documents!: Documents;
   sessions!: SessionRuntime;
+  agentView!: Agents;
   readonly conversations = new Conversations();
   private unlockShared?: () => void;
 
@@ -137,6 +136,14 @@ export class Store {
         offline: resolved.provider === "faux",
       });
       store.shared.harness.subscribeCommits(() => store.notify());
+      store.agentView = new Agents({
+        catalog,
+        models,
+        compaction,
+        changes,
+        sessions: store.sessions,
+        conversations: store.conversations,
+      });
       await store.sessions.openAll(store.list());
       if (!(await store.shared.initialized()))
         await store.shared.initialize({ goal: "Explore durable agents", counter: 0, notes: [] });
@@ -296,41 +303,8 @@ export class Store {
 
   // ------------------------------------------------------------ agents
 
-  private names(sessionId: string) {
-    return this.catalog.agentNames(sessionId);
-  }
-
-  private agentRef(record: ConversationRecord, names: Map<number, string>): AgentRef {
-    const id = record.id as number;
-    const kind = record.parent ? "fork" : record.owner ? "subagent" : "root";
-    const custom = names.get(id);
-    const derived =
-      id === 1 ? "Main" : kind === "fork" ? `Fork #${id}` : kind === "subagent" ? `Subagent #${id}` : `Root #${id}`;
-    return {
-      id,
-      name: custom ?? derived,
-      named: custom !== undefined,
-      kind,
-      ...(record.parent ? { parentId: record.parent.conversationId as number, forkedAt: record.parent.at as number } : {}),
-      ...(record.owner
-        ? { ownerAgentId: record.owner.conversationId as number, ownerTaskId: record.owner.taskId as number }
-        : {}),
-    };
-  }
-
   async agents(row: SessionRow, tasks?: TaskNode[]): Promise<AgentSummary[]> {
-    const h = this.harness(row);
-    const names = this.names(row.id);
-    const records = await this.scanAll(h);
-    const live = tasks ?? (await this.liveTasks(h));
-    return records.map((record) => {
-      const own = live.filter((t) => t.conversationId === (record.id as number));
-      return {
-        ...this.agentRef(record, names),
-        busy: own.some((t) => !t.background),
-        background: own.filter((t) => t.background).length,
-      };
-    });
+    return this.agentView.list(row, tasks);
   }
 
   async liveTasks(h: Harness): Promise<TaskNode[]> {
@@ -341,141 +315,32 @@ export class Store {
     return this.conversations.taskNode(t);
   }
 
-  /** Agent by numeric id, `main`, or unique name (custom or derived, case-insensitive). */
   async resolveAgent(sessionRef: string, agentRef: string): Promise<Resolved> {
-    const row = this.resolveSession(sessionRef);
-    const h = this.harness(row);
-    let id: number | undefined;
-    if (/^\d+$/.test(agentRef)) id = Number(agentRef);
-    else if (agentRef.toLowerCase() === "main") id = 1;
-    else {
-      const wanted = agentRef.toLowerCase();
-      const names = this.names(row.id);
-      const matches = (await this.scanAll(h))
-        .map((r) => this.agentRef(r, names))
-        .filter((a) => a.name.toLowerCase() === wanted);
-      if (matches.length > 1) throw new ApiFault("ambiguous", `${matches.length} agents are named "${agentRef}"`);
-      id = matches[0]?.id;
-    }
-    const c = id === undefined ? undefined : await h.conversation(id as ConversationId, ctx);
-    if (!c) throw notFound(`No agent "${agentRef}" in session ${row.name}`);
-    return { row, h, c };
+    return this.agentView.resolve(sessionRef, agentRef);
   }
 
   async agentSummary(row: SessionRow, c: Conversation): Promise<AgentSummary> {
-    const agents = await this.agents(row);
-    return agents.find((a) => a.id === (c.id as number))!;
-  }
-
-  /** Every tool of the agent's selected extensions, first definition per name, and the names it is offered. */
-  private async toolsOf(c: Conversation) {
-    const agent = await c.agent(ctx);
-    const all = new Map<string, ToolRegistration>();
-    for (const extension of agent.extensions)
-      for (const tool of extension.tools ?? []) if (!all.has(tool.name)) all.set(tool.name, tool as ToolRegistration);
-    return { agent, all: [...all.values()], offered: new Set(agent.tools.map((t) => t.name)) };
+    return this.agentView.summary(row, c);
   }
 
   async agentDetail(row: SessionRow, c: Conversation): Promise<AgentDetail> {
-    const { agent, all, offered } = await this.toolsOf(c);
-    const writers = all.filter(writes);
-    return {
-      ...(await this.agentSummary(row, c)),
-      sessionId: row.id,
-      config: {
-        model: agent.model,
-        thinkingLevel: agent.thinkingLevel as ThinkingLevel | undefined,
-        instructions: agent.instructions,
-        cwd: agent.cwd,
-        readOnly: writers.length > 0 && writers.every((t) => !offered.has(t.name)),
-      },
-      tools: all.map((t) => ({
-        name: t.name,
-        description: t.description,
-        replay: (t.replay ?? "unsafe") as "safe" | "unsafe",
-        parameters: JSON.parse(JSON.stringify(t.parameters ?? {})),
-        writes: writes(t),
-        offered: offered.has(t.name),
-      })),
-      extensions: agent.extensions.map((e) => e.name),
-    };
+    return this.agentView.detail(row, c);
   }
 
   setAgentName(row: SessionRow, agentId: number, name: unknown) {
-    if (typeof name !== "string" || !name.trim()) throw invalid("A name is required");
-    const clean = name.trim().slice(0, 100);
-    if (/^\d+$/.test(clean) || clean.toLowerCase() === "main" && agentId !== 1)
-      throw invalid("Agent names cannot be numbers or 'main'");
-    this.catalog.setAgentName(row.id, agentId, clean);
+    return this.agentView.setName(row, agentId, name);
   }
 
   async createAgent(row: SessionRow, body: { from?: unknown; name?: unknown }) {
-    const h = this.harness(row);
-    const source = await this.resolveAgent(row.id, String(body.from ?? 1));
-    const agent = await source.c.agent(ctx);
-    const other = await h.createConversation(
-      {
-        ownership: { kind: "ownerless" },
-        agent: {
-          model: agent.model,
-          cwd: agent.cwd,
-          thinkingLevel: agent.thinkingLevel,
-          instructions: agent.instructions,
-        },
-      },
-      ctx,
-    );
-    if (typeof body.name === "string" && body.name.trim()) this.setAgentName(row, other.id as number, body.name);
-    this.notify();
-    return this.agentSummary(row, other);
+    return this.agentView.create(row, body);
   }
 
   async fork(row: SessionRow, c: Conversation, body: { entryId?: unknown; name?: unknown }) {
-    const at = Number(body.entryId);
-    if (!Number.isSafeInteger(at)) throw invalid("entryId is required");
-    if (body.name !== undefined && typeof body.name !== "string") throw invalid("Invalid fork name");
-    const fork = await c.fork(at as EntryId, { ownership: { kind: "ownerless" } }, ctx);
-    const agent = await fork.agent(ctx);
-    await fork.configure({ model: this.routedModel(agent.model) }, ctx);
-    if (typeof body.name === "string" && body.name.trim()) this.setAgentName(row, fork.id as number, body.name);
-    this.notify();
-    return this.agentSummary(row, fork);
+    return this.agentView.fork(row, c, body);
   }
 
   async configure(row: SessionRow, c: Conversation, body: Record<string, unknown>) {
-    const model = body.model === undefined ? undefined : this.validateModel(body.model);
-    if (body.thinkingLevel !== undefined && !THINKING_LEVELS.includes(body.thinkingLevel as ThinkingLevel))
-      throw invalid("Invalid thinking level");
-    if (body.instructions !== undefined && typeof body.instructions !== "string")
-      throw invalid("instructions must be a string");
-    let cwd: string | undefined;
-    if (body.cwd !== undefined) {
-      if (typeof body.cwd !== "string") throw invalid("cwd must be a string");
-      cwd = (await this.browse(body.cwd)).path;
-    }
-    if (body.readOnly !== undefined && typeof body.readOnly !== "boolean") throw invalid("readOnly must be a boolean");
-    // Read only filters the agent's tools: the model is never offered the ones that create, update or delete.
-    const tools =
-      body.readOnly === true
-        ? { tools: { remove: (await this.toolsOf(c)).all.filter(writes) } }
-        : body.readOnly === false
-          ? { tools: null }
-          : {};
-    await c.configure(
-      {
-        ...tools,
-        ...(model ? { model } : {}),
-        ...(body.thinkingLevel ? { thinkingLevel: body.thinkingLevel as ThinkingLevel } : {}),
-        ...(typeof body.instructions === "string" ? { instructions: body.instructions.slice(0, 12000) } : {}),
-        ...(cwd ? { cwd } : {}),
-      },
-      ctx,
-    );
-    if (model && (c.id as number) === 1) this.catalog.setSessionModel(row.id, model);
-    // Thresholds are shared by the session's agents; refit them when this model's window is too small for them.
-    if (model) this.compaction.refitFor(row.id, model.modelId);
-    this.notify();
-    return (await this.agentDetail(row, c)).config;
+    return this.agentView.configure(row, c, body);
   }
 
   async send(c: Conversation, body: Record<string, unknown>) {
@@ -721,4 +586,3 @@ export class Store {
   }
 }
 
-export type { Resolved };
