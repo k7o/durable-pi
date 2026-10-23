@@ -30,9 +30,11 @@ import {
 } from "../../dpi-sdk/src/api.js";
 import { lastAssistantText, messageText, toMarkdown, toTranscript } from "../../dpi-sdk/src/transcript.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
+import { lockFile } from "./locks.js";
+import { ChangeFeed } from "./changes.js";
 import { DatabaseSync } from "node:sqlite";
 import { mkdir, readdir, realpath, rename as renamePath, stat } from "node:fs/promises";
-import { mkdirSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { homedir, hostname, platform } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -103,32 +105,6 @@ const AGENT_DOCS = { [JOB_RUNS_DOC]: JobRuns, [TODOS_DOC]: Todos, "demo.workspac
 export const AGENT_DOC_KINDS = Object.keys(AGENT_DOCS);
 export const DEVICE_DOC_KINDS = ["app.shared-state"];
 
-export function lockFile(path: string) {
-  mkdirSync(dirname(path), { recursive: true });
-  const take = () => writeFileSync(path, String(process.pid), { flag: "wx", mode: 0o600 });
-  try {
-    take();
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
-    const pid = Number(readFileSync(path, "utf8"));
-    let alive = false;
-    try {
-      process.kill(pid, 0);
-      alive = true;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ESRCH") alive = true;
-    }
-    if (alive && pid !== process.pid) throw Error(`Database already owned by process ${pid}: ${path}`);
-    unlinkSync(path);
-    take();
-  }
-  return () => {
-    try {
-      if (readFileSync(path, "utf8") === String(process.pid)) unlinkSync(path);
-    } catch {}
-  };
-}
-
 type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void; jobs: Jobs; addons: Addons };
 type Resolved = { row: SessionRow; h: Harness; c: Conversation };
 
@@ -154,7 +130,7 @@ export class Store {
   modelList: ModelInfo[] = [];
   private unlockCatalog: () => void;
   private unlockShared?: () => void;
-  private listeners = new Set<() => void>();
+  readonly changes = new ChangeFeed();
   /** Saved thresholds per session; null when the session uses the defaults for its model. */
   private compactions = new Map<string, Partial<CompactionSettings> | null>();
   /** Task labels never change once known: tool names of pi.tool tasks, job titles of job runs. */
@@ -241,12 +217,9 @@ export class Store {
   // ------------------------------------------------------------ change feed
 
   subscribe(fn: () => void) {
-    this.listeners.add(fn);
-    return () => void this.listeners.delete(fn);
+    return this.changes.subscribe(fn);
   }
-  notify = () => {
-    for (const fn of this.listeners) fn();
-  };
+  notify = () => this.changes.notify();
 
   // ------------------------------------------------------------ device
 
