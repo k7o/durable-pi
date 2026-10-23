@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import type { JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
+import type { TodosDoc } from "../src/todos.js";
 import { DpiClient } from "../../dpi-sdk/src/client.js";
 import { DpiError } from "../../dpi-sdk/src/errors.js";
 import { bootServer, faux, newToken, tempStore, until } from "./helpers.js";
@@ -91,7 +92,7 @@ test("REST v1: auth, sessions, agents, messages, waits, idempotency, errors", as
 
     // Demo extension + docs.
     // Durable jobs: definitions on the device, a run started by a client, then one started by the agent's tool.
-    assert.deepEqual((await client.device()).jobs?.map((j) => j.id), ["workspace-snapshot", "release-check", "change-watch"]);
+    assert.deepEqual((await client.device()).jobs?.map((j) => j.id), ["workspace-snapshot", "release-check", "change-watch", "todo-digest"]);
     const runs = async () => (await main.doc<JobRunsDoc>("demo.job-runs")).value.items;
     const job = await main.demo<{ taskId: number }>("jobs", { job: "workspace-snapshot" });
     await until(async () => (await runs())[job.taskId]?.status === "completed", 15000, "job");
@@ -106,10 +107,29 @@ test("REST v1: auth, sessions, agents, messages, waits, idempotency, errors", as
     };
     assert.equal((await main.send("jobs?", "followUp", "list-jobs", 20000)).status, "done");
     assert.match(await toolText("list_durable_jobs"), new RegExp(`"taskId":${job.taskId}`), "list_durable_jobs exposes run ids");
+    // The todo tool edits the conversation document demo.todos; a task-scoped receipt makes replays idempotent.
+    assert.equal((await main.send("todo: add write the experiment", "followUp", "todo-add", 20000)).status, "done");
+    assert.match(await toolText("todo"), /Added t\d+: write the experiment/);
+    const todoDoc = async () => (await main.doc<TodosDoc>("demo.todos")).value;
+    const added = (await todoDoc()).items[0]!;
+    assert.equal(added.text, "write the experiment");
+    assert.equal(added.done, false);
+    assert.equal((await main.send(`todo: complete ${added.id}`, "followUp", "todo-done", 20000)).status, "done");
+    assert.equal((await todoDoc()).items[0]!.done, true);
+    assert.equal((await main.send("todos?", "followUp", "todo-list", 20000)).status, "done");
+    assert.match(await toolText("todo"), /"done":true/);
+    // The one-phase todo-digest job reads the document and writes its digest back in a checkpointed phase.
+    assert.equal((await main.send("job: todo-digest", "followUp", "run-todo-job", 20000)).status, "done");
+    const todoRun = async () => Object.values(await runs()).find((r) => r.job === "todo-digest");
+    await until(async () => (await todoRun())?.status === "completed", 15000, "todo digest");
+    const digest = (await todoDoc()).digest!;
+    assert.equal(digest.open, 0);
+    assert.equal(digest.done, 1);
+    assert.match(digest.text, /0 open, 1 done/);
     // run_durable_job returns at once; the run continues in the background and check_durable_job reports it.
     assert.equal((await main.send('job: workspace-snapshot {"path":"."}', "followUp", "run-job", 30000)).status, "done");
     assert.match(await toolText("run_durable_job"), /check_durable_job/);
-    const byTool = async () => Object.values(await runs()).find((r) => r.startedBy === "agent");
+    const byTool = async () => Object.values(await runs()).find((r) => r.startedBy === "agent" && r.job === "workspace-snapshot");
     await until(async () => (await byTool())?.status === "completed", 15000, "agent-started run");
     const agentRun = (await byTool())!;
     assert.ok(agentRun.toolCallId);

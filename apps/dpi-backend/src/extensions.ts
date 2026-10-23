@@ -19,6 +19,7 @@ import {
 import type { Context } from "@earendil-works/chord";
 import { JobRuns, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
 import { searchHistory } from "./history.js";
+import { Todos } from "./todos.js";
 
 export const Workspace = defineDoc<AppState>({
   kind: "demo.workspace",
@@ -42,6 +43,13 @@ const Pager = defineDoc<{ paged: boolean; at: number; page: string; summary: str
   history: "latest",
   fork: "initial",
   initial: () => ({ paged: false, at: 0, page: "", summary: "" }),
+});
+/** One receipt per tool call: a replay after a crash returns this result instead of editing the list twice. */
+const TodoReceipt = defineDoc<{ applied: boolean; result: string }>({
+  kind: "demo.todo-receipt",
+  version: 1,
+  scope: "task",
+  initial: () => ({ applied: false, result: "" }),
 });
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -160,6 +168,65 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const recentRuns = async (api: Pick<ToolExecutionApi, "conversationId" | "snapshot">, ctx: Context) =>
     Object.values((await api.snapshot(JobRuns, api.conversationId, ctx))?.items ?? {}).sort((a, b) => b.id - a.id);
+  const todo = defineTool({
+    name: "todo",
+    description:
+      "Manage this conversation's durable todo list (document demo.todos). list shows every item with its id, open and done counts. add needs text. complete, reopen and remove need an item id from list. Every change is committed atomically with the tool result and survives disconnects and restarts.",
+    parameters: Type.Object({
+      action: Type.Union(
+        [Type.Literal("list"), Type.Literal("add"), Type.Literal("complete"), Type.Literal("reopen"), Type.Literal("remove")],
+        { description: "What to do with the list." },
+      ),
+      text: Type.Optional(Type.String({ description: "Item text for add. Required for add." })),
+      id: Type.Optional(Type.String({ description: "Item id from list. Required for complete, reopen and remove." })),
+    }),
+    replay: "safe",
+    execute: async (args, api, ctx) => {
+      const text = await api.commit(async (tx) => {
+        // A replay after a crash reuses the first result: no duplicate add, no double toggle.
+        const receipt = await tx.doc(TodoReceipt, api.taskId);
+        if (receipt.applied) return receipt.result;
+        const doc = await tx.doc(Todos, api.conversationId);
+        let out: string;
+        if (args.action === "list") {
+          out = JSON.stringify({
+            open: doc.items.filter((i) => !i.done).length,
+            done: doc.items.filter((i) => i.done).length,
+            items: doc.items,
+          });
+        } else if (args.action === "add") {
+          const value = args.text?.trim();
+          if (!value) throw Error("add needs text");
+          if (value.length > 280) throw Error("text must be 280 characters or less");
+          // The tool call's task id is unique and durable, so it is also the item id.
+          const id = `t${api.taskId}`;
+          if (!doc.items.some((i) => i.id === id)) doc.items.push({ id, text: value, done: false, createdAt: Date.now() });
+          out = `Added ${id}: ${value}`;
+        } else {
+          const id = args.id?.trim();
+          if (!id) throw Error(`${args.action} needs an item id from list`);
+          const item = doc.items.find((i) => i.id === id);
+          if (!item) throw Error(`No todo item ${id}. Use action list for ids.`);
+          if (args.action === "complete") {
+            item.done = true;
+            item.doneAt ??= Date.now();
+            out = `Completed ${id}: ${item.text}`;
+          } else if (args.action === "reopen") {
+            item.done = false;
+            delete item.doneAt;
+            out = `Reopened ${id}: ${item.text}`;
+          } else {
+            doc.items = doc.items.filter((i) => i.id !== id);
+            out = `Removed ${id}: ${item.text}`;
+          }
+        }
+        receipt.applied = true;
+        receipt.result = out;
+        return out;
+      }, ctx);
+      return { content: [{ type: "text", text }], details: { action: args.action } };
+    },
+  });
   const listJobs = defineTool({
     name: "list_durable_jobs",
     description:
@@ -489,6 +556,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
     tools: [
       readAppState,
       updateState,
+      todo,
       listJobs,
       runJob,
       checkJob,
@@ -502,7 +570,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
       section(
         "playground",
         () =>
-          `You are a concise coding agent in the Durable Pi playground. Explain only what matters. Use only the tools you are offered; read only agents get no tools that write. Use read_state to inspect App State and update_state to create, update, delete, or increment any field. App State is shared across all agents, sessions, conversations and forks in this demo. It survives browser closure, interrupted agents, and backend restarts. Forks use the current shared object rather than a historical copy. Read before writing because other agents and humans can change it. Use only read_state and update_state for this object, never inspect or edit its database files. App State is a flexible JSON object: numbers, booleans, strings, arrays, nested objects, and null all render as live controls in the UI. Read before editing. Use list_durable_jobs and run_durable_job to run a repeatable durable job (a named workflow with checkpointed phases) when asked; pass only the inputs list_durable_jobs documents. Runs continue in the background: check them with check_durable_job, and wait only when asked. Use search_history to look back at earlier messages, tool calls or entries by number, including what came before a reset, handoff or compaction. Use ping_on_call_engineer only when asked to page someone; it works once. Use subagent only when explicitly asked to delegate. Use start_session only when asked to start a new session; it runs on its own. Never claim an action happened without using its tool. Background runs finish independently; do not wait in bash. A browser disconnect does not stop your work.`,
+          `You are a concise coding agent in the Durable Pi playground. Explain only what matters. Use only the tools you are offered; read only agents get no tools that write. Use read_state to inspect App State and update_state to create, update, delete, or increment any field. App State is shared across all agents, sessions, conversations and forks in this demo. It survives browser closure, interrupted agents, and backend restarts. Forks use the current shared object rather than a historical copy. Read before writing because other agents and humans can change it. Use only read_state and update_state for this object, never inspect or edit its database files. App State is a flexible JSON object: numbers, booleans, strings, arrays, nested objects, and null all render as live controls in the UI. Read before editing. Use the todo tool to add, list, complete, reopen or remove items in this conversation's own durable todo list; use run_durable_job with todo-digest to summarise it. Use list_durable_jobs and run_durable_job to run a repeatable durable job (a named workflow with checkpointed phases) when asked; pass only the inputs list_durable_jobs documents. Runs continue in the background: check them with check_durable_job, and wait only when asked. Use search_history to look back at earlier messages, tool calls or entries by number, including what came before a reset, handoff or compaction. Use ping_on_call_engineer only when asked to page someone; it works once. Use subagent only when explicitly asked to delegate. Use start_session only when asked to start a new session; it runs on its own. Never claim an action happened without using its tool. Background runs finish independently; do not wait in bash. A browser disconnect does not stop your work.`,
         { tag: false },
       ),
     ],

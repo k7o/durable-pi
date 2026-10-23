@@ -30,6 +30,7 @@ import {
   type JobStepKind,
 } from "../../dpi-sdk/src/jobs.js";
 import type { SharedState } from "./shared-state.js";
+import { Todos, type TodoDigest, type TodosDoc } from "./todos.js";
 
 export const JobRuns = defineDoc<JobRunsDoc>({
   kind: JOB_RUNS_DOC,
@@ -117,6 +118,16 @@ export const JOB_DEFS: JobDef[] = [
     resultPath: `/${RESULT_ROOT}/change-watch`,
     seconds: 25,
   },
+  {
+    id: "todo-digest",
+    title: "Todo digest",
+    summary: "Read this conversation's todo list in one checkpointed phase, save a one-line digest on the list and in App State.",
+    phases: [{ id: "digest", label: "Digest", summary: "Count open and done items and name the oldest open one" }],
+    inputs: [],
+    approval: false,
+    resultPath: `/${RESULT_ROOT}/todo-digest`,
+    seconds: 2,
+  },
 ];
 
 export const jobDef = (id: string) => JOB_DEFS.find((d) => d.id === id);
@@ -162,6 +173,10 @@ interface Phase {
   progress(done: number, total: number): Promise<void>;
   saveState(path: string, value: JsonValue): Promise<void>;
   readState(path: string): Promise<JsonValue | undefined>;
+  /** This conversation's todo document (demo.todos), created empty on first read. */
+  todos(): Promise<Readonly<TodosDoc>>;
+  /** Store the digest on the todo document in the same commit as this phase's checkpoint write. */
+  saveTodoDigest(digest: TodoDigest): Promise<void>;
   /** Run a subagent with read and bash in an owned child conversation; its tool calls become steps. */
   agent(prompt: string): Promise<string>;
   sleepUntil(at: number): Promise<void>;
@@ -316,6 +331,35 @@ const HANDLERS: Record<string, Record<string, Handler>> = {
         changes,
       });
       return { done: changes.length ? `${changes.length} changes saved to App State` : "No changes. Report saved to App State" };
+    },
+  },
+
+  "todo-digest": {
+    digest: async (p) => {
+      const doc = await p.todos();
+      const open = doc.items.filter((i) => !i.done);
+      const done = doc.items.filter((i) => i.done);
+      await p.step("note", "Read the todo list", async () => ({
+        value: undefined,
+        detail: `${doc.items.length} items: ${open.length} open, ${done.length} done`,
+      }));
+      if (!doc.items.length) return { done: "Todo list is empty; nothing to digest", data: { open: 0, done: 0, text: "Todo list is empty" } };
+      const oldest = [...open].sort((a, b) => a.createdAt - b.createdAt)[0];
+      const text = `${open.length} open, ${done.length} done${oldest ? `; oldest open: ${oldest.text}` : ""}`;
+      await p.step("state", "Save the digest", async () => {
+        const at = p.now();
+        await p.saveState(`/${RESULT_ROOT}/todo-digest`, {
+          run: p.run.n,
+          at: new Date(at).toISOString(),
+          open: open.length,
+          done: done.length,
+          text,
+        });
+        // The same phase also writes the conversation document, so the UI shows the digest next to the list.
+        await p.saveTodoDigest({ run: p.run.n, at, open: open.length, done: done.length, text });
+        return { value: undefined, detail: text };
+      });
+      return { done: text, data: { open: open.length, done: done.length, text } };
     },
   },
 };
@@ -475,6 +519,12 @@ export function createJobs(deps: JobsDeps) {
           return undefined;
         }
       },
+      todos: async () => (await runtime.snapshot(Todos, task.conversationId, ctx)) ?? { items: [] },
+      saveTodoDigest: (digest) =>
+        runtime.commit(async (tx) => {
+          (await tx.doc(Todos, task.conversationId)).digest = digest;
+          return undefined;
+        }, ctx),
       sleepUntil: (at) => runtime.sleep(at, ctx),
       agent: async (prompt) => {
         let childId = 0;
