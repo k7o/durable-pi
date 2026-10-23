@@ -1,0 +1,26 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { Models } from "../src/models.js";
+
+test("models: faux lists one deterministic model and routes anything else to it", async () => {
+  const models = await Models.open("faux");
+  assert.deepEqual(models.list.map((m) => m.id), ["echo"]);
+  assert.equal(models.defaultModelId, "echo");
+  assert.equal(models.windowOf("echo"), 128000);
+  assert.equal(models.windowOf("missing"), 0);
+
+  assert.deepEqual(models.routed(), { provider: "faux", modelId: "echo" });
+  assert.deepEqual(models.routed({ provider: "faux", modelId: "echo" }), { provider: "faux", modelId: "echo" });
+  assert.deepEqual(models.routed({ provider: "openrouter", modelId: "anthropic/claude" }), {
+    provider: "faux",
+    modelId: "echo",
+  });
+});
+
+test("models: accepts only a model from this device's catalog", async () => {
+  const models = await Models.open("faux");
+  assert.deepEqual(models.validate({ provider: "faux", modelId: "echo" }), { provider: "faux", modelId: "echo" });
+  assert.throws(() => models.validate({ provider: "faux", modelId: "missing" }), /Unknown model/);
+  assert.throws(() => models.validate({ provider: "openrouter", modelId: "echo" }), /Unknown model/);
+  assert.throws(() => models.validate(undefined), /model must be/);
+});

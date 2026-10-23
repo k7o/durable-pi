@@ -10,7 +10,6 @@ import type {
   DeviceTree,
   DirListing,
   InboxItem,
-  ModelInfo,
   Page,
   SendResult,
   SessionSummary,
@@ -38,10 +37,8 @@ import { join, dirname, resolve } from "node:path";
 import { homedir, hostname, platform } from "node:os";
 import { randomUUID } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx, withAbortSignal } from "@earendil-works/chord/context";
-import { createModels } from "@earendil-works/pi-ai/models";
-import { curatedByProvider, defaultModelByProvider, describeModel } from "./model-catalog.js";
-import { providerFor, type ProviderId } from "./provider.js";
-import { fauxModels, installFaux } from "./faux.js";
+import { Models } from "./models.js";
+import { type ProviderId } from "./provider.js";
 import {
   Harness,
   createRegistry,
@@ -100,13 +97,11 @@ const decodeCursor = (cursor?: string) => {
 };
 
 export class Store {
-  readonly models = createModels();
   readonly opened = new Map<string, Opened>();
   readonly errors = new Map<string, string>();
   readonly startedAt = Date.now();
   readonly uid: string;
   shared!: SharedState;
-  modelList: ModelInfo[] = [];
   private unlockShared?: () => void;
   /** Saved thresholds per session; null when the session uses the defaults for its model. */
   private compactions = new Map<string, Partial<CompactionSettings> | null>();
@@ -136,22 +131,9 @@ export class Store {
     readonly options: StoreOptions,
     readonly catalog: Catalog,
     readonly changes: ChangeFeed,
+    readonly models: Models,
   ) {
     this.uid = catalog.deviceUid;
-    if (options.provider === "faux") installFaux(this.models);
-    else {
-      const provider = providerFor(options.provider);
-      const shortlist = curatedByProvider[options.provider];
-      // A shortlist provider keeps only its reviewed models; the rest list their whole catalog.
-      this.models.setProvider(
-        shortlist
-          ? {
-              ...provider,
-              getModels: () => provider.getModels().filter((m) => shortlist.some((c) => c.id === m.id)),
-            }
-          : provider,
-      );
-    }
   }
 
   static async open(options: StoreOptions) {
@@ -160,7 +142,8 @@ export class Store {
     await Promise.all(resolved.startDirs.map((dir) => mkdir(dir, { recursive: true }).catch(() => {})));
     const changes = new ChangeFeed();
     const catalog = await Catalog.open(resolved.dataDir, changes);
-    const store = new Store(resolved, catalog, changes);
+    const models = await Models.open(resolved.provider, resolved.defaultModel);
+    const store = new Store(resolved, catalog, changes, models);
     try {
       store.unlockShared = lockFile(`${store.sharedStatePath}.lock`);
       store.shared = await SharedState.open(store.sharedStatePath);
@@ -174,7 +157,6 @@ export class Store {
       }
       if (!(await store.shared.initialized()))
         await store.shared.initialize({ goal: "Explore durable agents", counter: 0, notes: [] });
-      store.modelList = await store.loadModels();
       for (const { harness } of store.opened.values()) harness.resume();
       return store;
     } catch (e) {
@@ -202,8 +184,8 @@ export class Store {
       durableVersion: DURABLE_VERSION,
       startedAt: this.startedAt,
       startDirs: this.startDirs,
-      models: this.modelList,
-      defaultModel: this.defaultModelId(),
+      models: this.models.list,
+      defaultModel: this.models.defaultModelId,
       storage: { dataDir: this.options.dataDir, catalogPath: this.catalogPath, appStatePath: this.sharedStatePath },
       codeDir: CODE_DIR,
       capabilities: ["events", "docs", "demo", "jobs"],
@@ -211,65 +193,12 @@ export class Store {
     };
   }
 
-  private defaultModelId(): string {
-    if (this.options.provider === "faux") return fauxModels[0].id;
-    return this.options.defaultModel ?? defaultModelByProvider[this.options.provider];
-  }
-
-  private async loadModels(): Promise<ModelInfo[]> {
-    if (this.options.provider === "faux")
-      return fauxModels.map((m) => ({
-        id: m.id,
-        provider: "faux",
-        name: m.name,
-        tier: "T",
-        icon: "lab.png",
-        contextWindow: 128000,
-        reasoning: false,
-        cost: { input: 0, output: 0 },
-      }));
-    const provider = this.options.provider;
-    // Authorization resolves for every provider, so a device without a key lists no models.
-    const available = await this.models.getAvailable(provider, { signal: AbortSignal.timeout(10000) });
-    const shortlist = curatedByProvider[provider];
-    if (shortlist)
-      return shortlist.flatMap((c) => {
-        const m = available.find((entry) => entry.id === c.id);
-        return m
-          ? [
-              {
-                id: m.id,
-                provider,
-                name: c.name,
-                tier: c.tier,
-                icon: c.icon,
-                contextWindow: m.contextWindow,
-                reasoning: m.reasoning,
-                cost: { input: m.cost.input, output: m.cost.output },
-              },
-            ]
-          : [];
-      });
-    return available.map((m) => describeModel(provider, m));
-  }
-
   routedModel(model?: ModelRef): ModelRef {
-    const provider = this.options.provider;
-    const fallback = this.defaultModelId();
-    if (provider === "faux")
-      return { provider, modelId: fauxModels.some((m) => m.id === model?.modelId) ? model!.modelId : fallback };
-    // A session created on another provider falls back to this device's default.
-    const known = model?.provider === provider && !!this.models.getModel(provider, model.modelId);
-    return { provider, modelId: known ? model!.modelId : fallback };
+    return this.models.routed(model);
   }
 
   validateModel(model: unknown): ModelRef {
-    const m = model as ModelRef | undefined;
-    if (!m || typeof m.provider !== "string" || typeof m.modelId !== "string")
-      throw invalid("model must be { provider, modelId }");
-    if (m.provider !== this.options.provider || !this.models.getModel(m.provider, m.modelId))
-      throw invalid(`Unknown model ${m.provider}/${m.modelId}. Choose one from GET /v1/device models`);
-    return { provider: m.provider, modelId: m.modelId };
+    return this.models.validate(model);
   }
 
   // ------------------------------------------------------------ directories
@@ -443,7 +372,7 @@ export class Store {
       const harness = await Harness.open(
         await openNodeSqliteStorage(row.dbPath),
         {
-          models: this.models,
+          models: this.models.engine,
           registry,
           env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? row.cwd, shellEnv }),
           conversationCreated: async (tx, c) => {
@@ -910,7 +839,7 @@ export class Store {
   // ------------------------------------------------------------ compaction settings (per session)
 
   private windowOf(modelId: string) {
-    return this.modelList.find((m) => m.id === modelId)?.contextWindow ?? 0;
+    return this.models.windowOf(modelId);
   }
 
   /** Saved thresholds, or the defaults for the session model's window (200k background, 250k wait when it fits). */
