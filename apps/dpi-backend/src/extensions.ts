@@ -20,6 +20,7 @@ import type { Context } from "@earendil-works/chord";
 import { JobRuns, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
 import { searchHistory } from "./history.js";
 import { Todos } from "./todos.js";
+import { PLAYGROUND_SECTION, TOOL_DESCRIPTIONS } from "./prompt.js";
 import { writing } from "./tool-policy.js";
 
 export const Workspace = defineDoc<AppState>({
@@ -56,8 +57,7 @@ const TodoReceipt = defineDoc<{ applied: boolean; result: string }>({
 /** The `todo` tool. It closes over nothing, so one definition serves every conversation and a test can drive it directly. */
 export const TodoTool = defineTool({
   name: "todo",
-  description:
-    "Manage this conversation's durable todo list (document demo.todos). list shows every item with its id, open and done counts. add needs text. complete, reopen and remove need an item id from list. Every change is committed atomically with the tool result and survives disconnects and restarts.",
+  description: TOOL_DESCRIPTIONS.todo,
   parameters: Type.Object({
     action: Type.Union(
       [Type.Literal("list"), Type.Literal("add"), Type.Literal("complete"), Type.Literal("reopen"), Type.Literal("remove")],
@@ -173,8 +173,7 @@ export type SpawnSession = (input: {
 export function createPlayground(shared: SharedState, sessionId: string, spawn: SpawnSession, jobs: Jobs) {
   const readAppState = defineTool({
     name: "read_state",
-    description:
-      "Read the shared App State object used by every session, conversation and fork, or a field at a JSON Pointer path. Empty path reads the whole object.",
+    description: TOOL_DESCRIPTIONS.read_state,
     parameters: Type.Object({ path: Type.Optional(Type.String()) }),
     replay: "safe",
     execute: async (args) => {
@@ -186,8 +185,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const updateState = defineTool({
     name: "update_state",
-    description:
-      'CRUD the same shared App State for every agent and fork in this demo. create adds a new field, update replaces an existing value, delete removes it, increment adds a signed number. value_json must be JSON-encoded text: 3 for a number, true for a boolean, "hello" (including quotes) for a string, {"enabled":true} for an object, or [1,2] for an array. Omit value_json for delete. Use JSON Pointer paths: /counter, /settings/enabled, /notes/- to append. Escape ~ as ~0 and / as ~1. Empty path with update replaces the whole root object, with delete clears it. Read first with read_state. UI controls update live. Changes are atomic and replay-safe.',
+    description: TOOL_DESCRIPTIONS.update_state,
     parameters: Type.Object({
       operation: Type.Union([
         Type.Literal("create"),
@@ -232,8 +230,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
     Object.values((await api.snapshot(JobRuns, api.conversationId, ctx))?.items ?? {}).sort((a, b) => b.id - a.id);
   const listJobs = defineTool({
     name: "list_durable_jobs",
-    description:
-      "List the durable jobs you can start with run_durable_job: each job's id, what it does, its named phases, the inputs it takes (type, default, limits), whether it waits for a person's approval, the App State path where every run saves its result, and its recent runs in this conversation with their task ids for check_durable_job.",
+    description: TOOL_DESCRIPTIONS.list_durable_jobs,
     parameters: Type.Object({}),
     replay: "safe",
     execute: async (_args, api, ctx) => {
@@ -270,8 +267,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const runJob = defineTool({
     name: "run_durable_job",
-    description:
-      'Start a durable job: a repeatable workflow with named phases that runs as one checkpointed task and shows live in the chat. Call list_durable_jobs first for ids and inputs. It runs in the background: you get its task id at once, the conversation owns the run, and you check it with check_durable_job. Set wait true only when the user wants you to wait for the result; then the call owns the run, an interrupt stops it, and you get the outcome of every phase. Example: {"job":"workspace-snapshot","input":{"path":"."}}.',
+    description: TOOL_DESCRIPTIONS.run_durable_job,
     parameters: Type.Object({
       job: Type.String({ description: "Job id from list_durable_jobs." }),
       input: Type.Optional(
@@ -348,8 +344,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const checkJob = defineTool({
     name: "check_durable_job",
-    description:
-      "Check durable job runs in this conversation. With task_id, one run in full: status, current phase, every phase's outcome and steps (commands, the subagent's tool calls, App State writes), approval, result or error. With job, that job's latest run. With neither, a short list of recent runs. Task ids come from run_durable_job and list_durable_jobs.",
+    description: TOOL_DESCRIPTIONS.check_durable_job,
     parameters: Type.Object({
       task_id: Type.Optional(Type.Integer({ minimum: 1, description: "The run's task id." })),
       job: Type.Optional(Type.String({ description: "A job id: check its latest run." })),
@@ -383,8 +378,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const searchHistoryTool = defineTool({
     name: "search_history",
-    description:
-      "Search your own full stored history, including entries from before a reset, handoff or compaction that you can no longer see. Filter by words (query), by tool name (tool), by entry kind, or by entry number range (from_entry, to_entry). Pass entry to read one entry in full by its number. Results come newest first (order oldest to reverse) and are paged with limit and offset; use next_offset for the next page. Each result says whether the entry is active, compacted or before reset.",
+    description: TOOL_DESCRIPTIONS.search_history,
     parameters: Type.Object({
       query: Type.Optional(Type.String({ description: "Words that must all appear, case-insensitive." })),
       tool: Type.Optional(Type.String({ description: "Only calls to and results from this tool, for example bash." })),
@@ -427,8 +421,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   // No replay policy: the default `unsafe` means a crash mid-call returns an interrupted result and never pages twice.
   const pingOnCall = defineTool({
     name: "ping_on_call_engineer",
-    description:
-      "Page the human on-call engineer with a short summary. A real side effect: it is not replay-safe, so a crash returns an interrupted result instead of paging again, and it works once per agent. Only use it when the user asks you to page someone.",
+    description: TOOL_DESCRIPTIONS.ping_on_call_engineer,
     parameters: Type.Object({
       summary: Type.String({ description: "What the engineer needs to know, one or two sentences." }),
       severity: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("high"), Type.Literal("critical")])),
@@ -463,8 +456,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const subagent = defineTool({
     name: "subagent",
-    description:
-      "Delegate a self-contained task to an owned child conversation. Parent interruption also interrupts the child.",
+    description: TOOL_DESCRIPTIONS.subagent,
     parameters: Type.Object({ task: Type.String() }),
     replay: "safe",
     execute: async (args, api, ctx) => {
@@ -500,8 +492,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const startSession = defineTool({
     name: "start_session",
-    description:
-      "Start a new session on this device: its own harness, database and working directory, independent of this one. It keeps running if you are interrupted. Returns immediately; you do not wait for it.",
+    description: TOOL_DESCRIPTIONS.start_session,
     parameters: Type.Object({
       name: Type.String({ description: "Session name shown in the network tree." }),
       cwd: Type.String({
@@ -545,8 +536,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   });
   const handoff = defineTool({
     name: "handoff",
-    description:
-      "Start a fresh model context with a concise handoff note. Old transcript stays stored.",
+    description: TOOL_DESCRIPTIONS.handoff,
     parameters: Type.Object({ note: Type.String() }),
     execute: async (args) => ({
       content: [{ type: "text", text: "Context handed off." }],
@@ -573,7 +563,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
       section(
         "playground",
         () =>
-          `You are a concise coding agent in the Durable Pi playground. Explain only what matters. Use only the tools you are offered; read only agents get no tools that write. Use read_state to inspect App State and update_state to create, update, delete, or increment any field. App State is shared across all agents, sessions, conversations and forks in this demo. It survives browser closure, interrupted agents, and backend restarts. Forks use the current shared object rather than a historical copy. Read before writing because other agents and humans can change it. Use only read_state and update_state for this object, never inspect or edit its database files. App State is a flexible JSON object: numbers, booleans, strings, arrays, nested objects, and null all render as live controls in the UI. Read before editing. Use the todo tool to add, list, complete, reopen or remove items in this conversation's own durable todo list; use run_durable_job with todo-digest to summarise it. Use list_durable_jobs and run_durable_job to run a repeatable durable job (a named workflow with checkpointed phases) when asked; pass only the inputs list_durable_jobs documents. Runs continue in the background: check them with check_durable_job, and wait only when asked. Use search_history to look back at earlier messages, tool calls or entries by number, including what came before a reset, handoff or compaction. Use ping_on_call_engineer only when asked to page someone; it works once. Use subagent only when explicitly asked to delegate. Use start_session only when asked to start a new session; it runs on its own. Never claim an action happened without using its tool. Background runs finish independently; do not wait in bash. A browser disconnect does not stop your work.`,
+          PLAYGROUND_SECTION,
         { tag: false },
       ),
     ],

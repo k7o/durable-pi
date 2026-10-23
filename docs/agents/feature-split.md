@@ -1,6 +1,7 @@
 # Feature split: plan
 
-Status: **approved, nothing implemented**. The store split landed first (`docs/agents/store-split.md`),
+Status: **approved; slices 0 and 1 landed** (see [Progress](#progress)). Slice 2 is not started and no
+source file has moved. The store split landed first (`docs/agents/store-split.md`),
 which is what makes this one small: there is a composition root to assemble features from, so the
 remaining clutter is two hub files, not three.
 
@@ -12,7 +13,7 @@ collapse are both in. Implement in slices, one commit each.
 | Slice | State | Evidence |
 |---|---|---|
 | 0 · Contract snapshot | done | `tests/contracts.test.ts` (3 tests): the 11 tool names in order, `JOB_DEFS` ids and each job's phase ids in order, `AGENT_DOC_KINDS`/`DEVICE_DOC_KINDS`; swapping two tools in `extensions.ts` fails it; no production change; `npm run check` clean, 52/52 tests pass |
-| 1 · Prompt text out | todo | `src/prompt.ts` (or `descriptions.ts`); `extensions.ts` loses its 1,777-character line |
+| 1 · Prompt text out | done | `src/prompt.ts`: `PLAYGROUND_SECTION` (1,764 chars of text; the audit's 1,777 counted the indented source line) and `TOOL_DESCRIPTIONS` for all 11 tools in offered order; `extensions.ts` 581 → 571 lines; every description and the section are byte-identical to the literals they replaced; contract test unchanged; `npm run check` clean, 52/52 tests pass |
 | 2 · Feature contract | todo | `features/feature.ts`, `features/jobs/types.ts`; types only, no moves |
 | 3 · Jobs by job | todo | `features/jobs/{workspace-snapshot,release-check,change-watch,todo-digest,approval}.ts`, `defs.ts`; `jobs.ts` is a re-export shim |
 | 4 · Phase runtime | todo | `features/jobs/runtime.ts`; `jobs.ts` deleted |
