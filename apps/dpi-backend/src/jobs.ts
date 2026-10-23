@@ -4,7 +4,18 @@
 // the run record and the chat card all name the same phase. A phase does real work (shell commands in the session's
 // folder, a subagent with read and bash, App State writes), records every step in the conversation document
 // `demo.job-runs`, then commits the next checkpoint. A restart resumes the unfinished phase from its checkpoint.
-import type { Context, JsonValue } from "@earendil-works/chord";
+//
+// One run is stored in three places, and they answer different questions. Read them in this order:
+//
+//   the pi-durable task     where the run is: one task per run, its checkpoint { phase, iteration, data }.
+//                           This is the only thing that resumes work, and the task id is the run id.
+//   the job-runs document   what happened: one JobRun per task id, holding phases, steps, approval and result.
+//                           Read by check_durable_job and the Tasks tab; pruned to MAX_RUNS, newest kept.
+//   App State (resultPath)  the answer a client reads. Written by a phase, never by the engine, so a job that
+//                           fails before its last phase leaves the previous run's result in place.
+//
+// A phase is a checkpoint. A step is one recorded action inside it: command, note, state, agent or checkpoint.
+import type { Context } from "@earendil-works/chord";
 import {
   configure,
   defineDoc,
@@ -22,15 +33,20 @@ import { messageText } from "../../dpi-sdk/src/transcript.js";
 import {
   JOB_RUNS_DOC,
   type JobDef,
-  type JobInputValue,
   type JobPhaseRun,
   type JobRun,
   type JobRunsDoc,
   type JobStep,
-  type JobStepKind,
 } from "../../dpi-sdk/src/jobs.js";
 import type { SharedState } from "./shared-state.js";
-import { Todos, type TodoDigest, type TodosDoc } from "./todos.js";
+import { HANDLERS, JOB_DEFS } from "./features/jobs/defs.js";
+import { clip } from "./features/jobs/shared.js";
+import type { Data, Outcome, Phase, Values } from "./features/jobs/types.js";
+import { Todos } from "./todos.js";
+
+// The job catalogue moved to features/jobs/defs.ts in slice 3; these two are re-exported so every existing
+// caller and test keeps its import path until the shim goes away in slice 4.
+export { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
 
 export const JobRuns = defineDoc<JobRunsDoc>({
   kind: JOB_RUNS_DOC,
@@ -41,8 +57,6 @@ export const JobRuns = defineDoc<JobRunsDoc>({
   initial: () => ({ counts: {}, items: {} }),
 });
 
-type Values = Record<string, JobInputValue>;
-type Data = Record<string, JsonValue>;
 type JobInput = { job: string; input: Values };
 type Checkpoint = { phase: string; iteration: number; data: Data; approvalTask?: number };
 type JobResult = { summary: string };
@@ -53,325 +67,11 @@ type Running = RunningTask<JobInput, Checkpoint, JobResult>;
 const PACE_MS = 900;
 const MAX_RUNS = 30;
 const MAX_STEPS = 40;
-const RESULT_ROOT = "jobs";
-
 const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const tail = (s: string, lines = 8) => s.trim().split("\n").slice(-lines).join("\n");
-const q = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
-
-// ------------------------------------------------------------------ definitions
-
-export const JOB_DEFS: JobDef[] = [
-  {
-    id: "workspace-snapshot",
-    title: "Workspace snapshot",
-    summary: "Scan a folder, measure it and save a snapshot to App State. The same four phases every run.",
-    phases: [
-      { id: "scan", label: "Scan", summary: "Read the git branch, changed files and top-level entries" },
-      { id: "measure", label: "Measure", summary: "Count files by extension" },
-      { id: "save", label: "Save", summary: "Write the snapshot to App State" },
-      { id: "verify", label: "Verify", summary: "Read App State back and compare it with this run" },
-    ],
-    inputs: [
-      { name: "path", type: "string", default: ".", description: "Folder to snapshot, relative to the agent's working directory" },
-    ],
-    approval: false,
-    resultPath: `/${RESULT_ROOT}/workspace-snapshot`,
-    seconds: 5,
-  },
-  {
-    id: "release-check",
-    title: "Release check",
-    summary:
-      "Plan a release review, let a subagent gather facts with read and bash, wait for your approval, then publish the notes to App State and verify them.",
-    phases: [
-      { id: "plan", label: "Plan", summary: "Decide what the release notes must cover" },
-      { id: "gather", label: "Gather", summary: "A subagent runs git and reads the README" },
-      { id: "approve", label: "Approve", summary: "Wait for a person to approve publishing", kind: "approval" },
-      { id: "publish", label: "Publish", summary: "Write the release notes to App State" },
-      { id: "verify", label: "Verify", summary: "Read the notes back and confirm this run published them" },
-    ],
-    inputs: [
-      { name: "commits", type: "integer", default: 5, min: 1, max: 20, description: "How many recent commits the subagent reviews" },
-    ],
-    approval: true,
-    resultPath: `/${RESULT_ROOT}/release-check`,
-    seconds: 20,
-  },
-  {
-    id: "change-watch",
-    title: "Change watch",
-    summary:
-      "Take a baseline of a folder, check it again on a fixed interval with one checkpoint per check, then report what changed. Close the browser or restart the device mid-run; it resumes.",
-    phases: [
-      { id: "baseline", label: "Baseline", summary: "Checksum every file up to two levels deep" },
-      { id: "watch", label: "Watch", summary: "Re-check on an interval, one checkpoint per check", kind: "repeat" },
-      { id: "report", label: "Report", summary: "Save what changed to App State" },
-    ],
-    inputs: [
-      { name: "path", type: "string", default: ".", description: "Folder to watch, relative to the agent's working directory" },
-      { name: "checks", type: "integer", default: 5, min: 2, max: 20, description: "How many checks the watch phase runs" },
-      { name: "interval_seconds", type: "integer", default: 4, min: 2, max: 60, description: "Seconds between checks" },
-    ],
-    approval: false,
-    resultPath: `/${RESULT_ROOT}/change-watch`,
-    seconds: 25,
-  },
-  {
-    id: "todo-digest",
-    title: "Todo digest",
-    summary: "Read this conversation's todo list in one checkpointed phase, save a one-line digest on the list and in App State.",
-    phases: [{ id: "digest", label: "Digest", summary: "Count open and done items and name the oldest open one" }],
-    inputs: [],
-    approval: false,
-    resultPath: `/${RESULT_ROOT}/todo-digest`,
-    seconds: 2,
-  },
-];
-
-export const jobDef = (id: string) => JOB_DEFS.find((d) => d.id === id);
-
-/** Validate a job's input against its spec, filling defaults. Throws a message the caller can show as is. */
-export function resolveJobInput(def: JobDef, raw: unknown): Values {
-  const given = (raw ?? {}) as Record<string, unknown>;
-  if (typeof given !== "object" || Array.isArray(given)) throw Error("input must be an object");
-  const unknown = Object.keys(given).filter((k) => !def.inputs.some((i) => i.name === k));
-  if (unknown.length)
-    throw Error(`${def.id} has no input ${unknown.join(", ")}. Inputs: ${def.inputs.map((i) => i.name).join(", ") || "none"}`);
-  const out: Values = {};
-  for (const spec of def.inputs) {
-    const value = given[spec.name] ?? spec.default;
-    if (spec.type === "integer") {
-      const n = typeof value === "string" && value.trim() ? Number(value) : value;
-      if (typeof n !== "number" || !Number.isInteger(n)) throw Error(`${spec.name} must be an integer`);
-      if ((spec.min !== undefined && n < spec.min) || (spec.max !== undefined && n > spec.max))
-        throw Error(`${spec.name} must be ${spec.min} to ${spec.max}`);
-      out[spec.name] = n;
-    } else {
-      if (typeof value !== "string" || !value.trim() || value.includes("\0")) throw Error(`${spec.name} must be a non-empty string`);
-      out[spec.name] = value.trim();
-    }
-  }
-  return out;
-}
 
 // ------------------------------------------------------------------ the phase API job handlers use
 
-interface Phase {
-  readonly input: Values;
-  readonly data: Data;
-  readonly iteration: number;
-  readonly run: { id: number; n: number };
-  now(): number;
-  /** Run a shell command in the session's folder and record it as a step. Throws on a non-zero exit. */
-  exec(command: string, label?: string): Promise<string>;
-  /** Run a shell command without recording it. */
-  shell(command: string): Promise<{ code: number; out: string }>;
-  step<T>(kind: JobStepKind, label: string, fn: () => Promise<{ value: T; detail?: string }>): Promise<T>;
-  note(label: string, detail?: string): Promise<void>;
-  progress(done: number, total: number): Promise<void>;
-  saveState(path: string, value: JsonValue): Promise<void>;
-  readState(path: string): Promise<JsonValue | undefined>;
-  /** This conversation's todo document (demo.todos), created empty on first read. */
-  todos(): Promise<Readonly<TodosDoc>>;
-  /** Store the digest on the todo document in the same commit as this phase's checkpoint write. */
-  saveTodoDigest(digest: TodoDigest): Promise<void>;
-  /** Run a subagent with read and bash in an owned child conversation; its tool calls become steps. */
-  agent(prompt: string): Promise<string>;
-  sleepUntil(at: number): Promise<void>;
-}
-
-type Outcome = { done: string; data?: Data } | { again: Data; summary?: string };
-type Handler = (p: Phase) => Promise<Outcome>;
-
-const inDir = (dir: string, command: string) => (dir === "." ? command : `cd ${q(dir)} && ${command}`);
-const label = (dir: string, command: string) => (dir === "." ? command : `${command}  (in ${dir})`);
-const FIND = `find . -maxdepth 2 -type f -not -path '*/.git/*' -not -path '*/node_modules/*'`;
-
-const HANDLERS: Record<string, Record<string, Handler>> = {
-  "workspace-snapshot": {
-    scan: async (p) => {
-      const dir = String(p.input.path);
-      const branch = (
-        await p.exec(inDir(dir, `git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(not a git repo)"`), label(dir, "git rev-parse --abbrev-ref HEAD"))
-      ).trim();
-      const changed = (await p.exec(inDir(dir, "git status --short 2>/dev/null | head -50"), label(dir, "git status --short")))
-        .split("\n")
-        .filter(Boolean).length;
-      const entries = (await p.exec(inDir(dir, "ls -1A | head -200"), label(dir, "ls -1A"))).split("\n").filter(Boolean).length;
-      return { done: `${branch}, ${changed} changed, ${entries} entries`, data: { branch, changed, entries } };
-    },
-    measure: async (p) => {
-      const dir = String(p.input.path);
-      const count = Number(
-        (await p.exec(inDir(dir, `find . -type f -not -path '*/.git/*' -not -path '*/node_modules/*' | wc -l`), label(dir, "find . -type f | wc -l"))).trim(),
-      );
-      const raw = await p.exec(
-        inDir(
-          dir,
-          `find . -type f -not -path '*/.git/*' -not -path '*/node_modules/*' | sed -n 's/.*\\/[^/]*\\.\\([A-Za-z0-9]\\{1,8\\}\\)$/\\1/p' | sort | uniq -c | sort -rn | head -6`,
-        ),
-        label(dir, "count files by extension"),
-      );
-      const top = raw
-        .split("\n")
-        .map((line) => line.trim().split(/\s+/))
-        .filter((parts) => parts.length === 2)
-        .map(([n, ext]) => ({ ext, count: Number(n) }));
-      return {
-        done: `${count} files${top.length ? `: ${top.map((t) => `${t.ext} ${t.count}`).join(", ")}` : ""}`,
-        data: { files: count, top },
-      };
-    },
-    save: async (p) => {
-      await p.saveState(`/${RESULT_ROOT}/workspace-snapshot`, {
-        run: p.run.n,
-        at: new Date(p.now()).toISOString(),
-        folder: String(p.input.path),
-        branch: p.data.branch ?? null,
-        changed: p.data.changed ?? 0,
-        entries: p.data.entries ?? 0,
-        files: p.data.files ?? 0,
-        top: p.data.top ?? [],
-      });
-      return { done: `Saved to App State /${RESULT_ROOT}/workspace-snapshot` };
-    },
-    verify: async (p) => {
-      const saved = (await p.readState(`/${RESULT_ROOT}/workspace-snapshot`)) as { run?: number; files?: number } | undefined;
-      await p.step("state", `read_state /${RESULT_ROOT}/workspace-snapshot`, async () => {
-        if (saved?.run !== p.run.n || saved.files !== p.data.files)
-          throw Error(`App State holds run #${saved?.run ?? "none"}, not run #${p.run.n}. Another writer changed it.`);
-        return { value: undefined, detail: `run #${saved.run}, ${saved.files} files` };
-      });
-      return { done: `App State matches run #${p.run.n}` };
-    },
-  },
-
-  "release-check": {
-    plan: async (p) => {
-      const checks = [`Last ${p.input.commits} commits`, "Uncommitted changes", "README headline"];
-      for (const [i, check] of checks.entries()) await p.note(`Check ${i + 1}: ${check}`);
-      return { done: `${checks.length} checks planned`, data: { checks } };
-    },
-    gather: async (p) => {
-      const notes = await p.agent(
-        `Release check: gather facts for run #${p.run.n}. Use bash to run \`git log --oneline -${p.input.commits}\` and \`git status --short\`, then read the first 30 lines of README.md if it exists. Reply with at most 5 short lines: what changed recently, what is uncommitted, and the README headline. Do not edit files.`,
-      );
-      return { done: clip(notes.split("\n").find((l) => l.trim()) ?? "Gathered", 120), data: { notes } };
-    },
-    approve: async () => {
-      throw Error("approval phases run in the engine");
-    },
-    publish: async (p) => {
-      await p.saveState(`/${RESULT_ROOT}/release-check`, {
-        run: p.run.n,
-        at: new Date(p.now()).toISOString(),
-        checks: p.data.checks ?? [],
-        notes: p.data.notes ?? "",
-        approved: true,
-      });
-      return { done: `Published to App State /${RESULT_ROOT}/release-check` };
-    },
-    verify: async (p) => {
-      const saved = (await p.readState(`/${RESULT_ROOT}/release-check`)) as { run?: number; notes?: string } | undefined;
-      await p.step("state", `read_state /${RESULT_ROOT}/release-check`, async () => {
-        if (saved?.run !== p.run.n) throw Error(`App State holds run #${saved?.run ?? "none"}, not run #${p.run.n}.`);
-        return { value: undefined, detail: `run #${saved.run}, ${saved.notes?.length ?? 0} characters of notes` };
-      });
-      return { done: `Release notes for run #${p.run.n} are live` };
-    },
-  },
-
-  "change-watch": {
-    baseline: async (p) => {
-      const dir = String(p.input.path);
-      const sums = await p.step("command", label(dir, "cksum every file (2 levels)"), async () => {
-        const r = await p.shell(inDir(dir, `${FIND} -exec cksum {} + 2>/dev/null | head -300`));
-        const map = checksums(r.out);
-        return { value: map, detail: `${Object.keys(map).length} files` };
-      });
-      return {
-        done: `Baseline of ${Object.keys(sums).length} files`,
-        data: { sums, changes: [], nextAt: p.now() + Number(p.input.interval_seconds) * 1000 },
-      };
-    },
-    watch: async (p) => {
-      const dir = String(p.input.path);
-      const total = Number(p.input.checks);
-      const n = p.iteration + 1;
-      await p.sleepUntil(Number(p.data.nextAt ?? 0));
-      const before = (p.data.sums ?? {}) as Record<string, string>;
-      const { sums, found } = await p.step("checkpoint", `Check ${n}/${total}`, async () => {
-        const r = await p.shell(inDir(dir, `${FIND} -exec cksum {} + 2>/dev/null | head -300`));
-        const now = checksums(r.out);
-        const diff = [
-          ...Object.keys(now).filter((f) => !(f in before)).map((f) => `+ ${f}`),
-          ...Object.keys(before).filter((f) => !(f in now)).map((f) => `- ${f}`),
-          ...Object.keys(now).filter((f) => f in before && before[f] !== now[f]).map((f) => `~ ${f}`),
-        ];
-        return {
-          value: { sums: now, found: diff },
-          detail: diff.length ? `${diff.length} change${diff.length === 1 ? "" : "s"}: ${clip(diff.join(", "), 200)}` : "No changes. Checkpoint saved.",
-        };
-      });
-      await p.progress(n, total);
-      const changes = [...((p.data.changes ?? []) as string[]), ...found].slice(-100);
-      if (n < total)
-        return { again: { sums, changes, nextAt: p.now() + Number(p.input.interval_seconds) * 1000 } };
-      return { done: `${total} checks, ${changes.length} change${changes.length === 1 ? "" : "s"}`, data: { sums: {}, changes } };
-    },
-    report: async (p) => {
-      const changes = (p.data.changes ?? []) as string[];
-      await p.saveState(`/${RESULT_ROOT}/change-watch`, {
-        run: p.run.n,
-        at: new Date(p.now()).toISOString(),
-        folder: String(p.input.path),
-        checks: Number(p.input.checks),
-        changes,
-      });
-      return { done: changes.length ? `${changes.length} changes saved to App State` : "No changes. Report saved to App State" };
-    },
-  },
-
-  "todo-digest": {
-    digest: async (p) => {
-      const doc = await p.todos();
-      const open = doc.items.filter((i) => !i.done);
-      const done = doc.items.filter((i) => i.done);
-      await p.step("note", "Read the todo list", async () => ({
-        value: undefined,
-        detail: `${doc.items.length} items: ${open.length} open, ${done.length} done`,
-      }));
-      if (!doc.items.length) return { done: "Todo list is empty; nothing to digest", data: { open: 0, done: 0, text: "Todo list is empty" } };
-      const oldest = [...open].sort((a, b) => a.createdAt - b.createdAt)[0];
-      const text = `${open.length} open, ${done.length} done${oldest ? `; oldest open: ${oldest.text}` : ""}`;
-      await p.step("state", "Save the digest", async () => {
-        const at = p.now();
-        await p.saveState(`/${RESULT_ROOT}/todo-digest`, {
-          run: p.run.n,
-          at: new Date(at).toISOString(),
-          open: open.length,
-          done: done.length,
-          text,
-        });
-        // The same phase also writes the conversation document, so the UI shows the digest next to the list.
-        await p.saveTodoDigest({ run: p.run.n, at, open: open.length, done: done.length, text });
-        return { value: undefined, detail: text };
-      });
-      return { done: text, data: { open: open.length, done: done.length, text } };
-    },
-  },
-};
-
-function checksums(out: string) {
-  const map: Record<string, string> = {};
-  for (const line of out.split("\n")) {
-    const m = line.match(/^(\d+)\s+(\d+)\s+(.+)$/);
-    if (m) map[m[3].replace(/^\.\//, "")] = `${m[1]}:${m[2]}`;
-  }
-  return map;
-}
 
 // ------------------------------------------------------------------ run record helpers
 
