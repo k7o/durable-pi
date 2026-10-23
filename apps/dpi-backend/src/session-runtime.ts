@@ -1,5 +1,19 @@
 // A session's runtime: its database, lock, harness, jobs, addons and selected extensions. One
 // instance owns every open session on the device; archiving stops work and moves the files aside.
+//
+// Where a request goes, each hop named by the file that owns it. Start here when tracing one:
+//
+//   routes.ts, streams.ts      HTTP v1 and SSE; a session ref and an agent ref become objects here
+//     device.ts                composition root: joins across modules, no SQL, no fs, no harness
+//       agents.ts              resolve, list, create, fork, configure, and agent projections
+//       conversations.ts       send, abort, withdraw, entries, transcript, tasks
+//       playground.ts          demo endpoints: App State writes, start a job, answer an approval
+//       documents.ts           reads for GET .../docs/:kind through the kind registry
+//       THIS FILE              one Harness per open session, plus its Jobs, Addons and registry
+//         harness              pi-durable: entries, documents, tasks and submissions, one commit each
+//           jobs.ts            a run is a task; each phase records steps and commits a checkpoint
+//           extensions.ts      a tool runs in its own task and commits its effect before answering
+//         shared-state.ts      chord replicated App State, shared by every session and agent
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { Harness, createRegistry } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
@@ -15,7 +29,8 @@ import type { ChangeFeed } from "./changes.js";
 import type { Compaction } from "./compaction.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { createPlayground, Workspace, type SpawnSession } from "./extensions.js";
-import { createJobs, JobRuns, type Jobs } from "./jobs.js";
+import { createJobs, type Jobs } from "./features/jobs/engine.js";
+import { JobRuns } from "./features/jobs/record.js";
 import { lockFile } from "./locks.js";
 import type { Models } from "./models.js";
 import type { SharedState } from "./shared-state.js";

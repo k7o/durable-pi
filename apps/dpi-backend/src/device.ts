@@ -36,7 +36,7 @@ import { Conversations } from "./conversations.js";
 import { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { type SpawnSession } from "./extensions.js";
-import { JOB_DEFS } from "./jobs.js";
+import { JOB_DEFS } from "./features/jobs/defs.js";
 import { lockFile } from "./locks.js";
 import { Models } from "./models.js";
 import { Playground } from "./playground.js";

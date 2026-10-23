@@ -6,7 +6,7 @@ import type { AppState } from "../../dpi-sdk/src/app-state.js";
 import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
 import { notFound } from "./errors.js";
 import { Workspace } from "./extensions.js";
-import { JobRuns } from "./jobs.js";
+import { JobRuns } from "./features/jobs/record.js";
 import type { SharedState } from "./shared-state.js";
 import { Todos, TODOS_DOC } from "./todos.js";
 

@@ -3,6 +3,7 @@
 // runtime.ts is free to change how the phase is implemented.
 import type { JsonValue } from "@earendil-works/chord";
 import type { JobDef, JobInputValue, JobStepKind } from "../../../../dpi-sdk/src/jobs.js";
+import type { SharedState } from "../../shared-state.js";
 import type { TodoDigest, TodosDoc } from "../../todos.js";
 
 export type Values = Record<string, JobInputValue>;
@@ -37,6 +38,12 @@ export interface Phase {
 export type Outcome = { done: string; data?: Data } | { again: Data; summary?: string };
 
 export type Handler = (p: Phase) => Promise<Outcome>;
+
+/** What the engine and the phase object need from the device: the App State it writes and the session it names. */
+export interface JobsDeps {
+  readonly shared: SharedState;
+  readonly sessionId: string;
+}
 
 /** One job, kept in one file: its metadata, its phases and the handler for each phase. */
 export type JobModule = {

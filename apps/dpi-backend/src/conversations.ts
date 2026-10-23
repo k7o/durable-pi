@@ -22,7 +22,8 @@ import type {
 } from "../../dpi-sdk/src/api.js";
 import { messageText, toMarkdown, toTranscript } from "../../dpi-sdk/src/transcript.js";
 import { invalid, notFound } from "./errors.js";
-import { JobRuns, jobDef } from "./jobs.js";
+import { jobDef } from "./features/jobs/defs.js";
+import { JobRuns } from "./features/jobs/record.js";
 
 const encodeCursor = (cursor: unknown) =>
   cursor === undefined ? undefined : Buffer.from(JSON.stringify(cursor)).toString("base64url");

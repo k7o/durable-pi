@@ -7,7 +7,9 @@ import type { StateChange } from "../../dpi-sdk/src/app-state.js";
 import type { SessionRow } from "./catalog.js";
 import type { Documents } from "./documents.js";
 import { ApiFault, invalid } from "./errors.js";
-import { JobRuns, JOB_DEFS, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
+import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
+import type { Jobs } from "./features/jobs/engine.js";
+import { JobRuns } from "./features/jobs/record.js";
 import type { SharedState } from "./shared-state.js";
 
 export class Playground {

@@ -17,7 +17,9 @@ import {
   type ToolExecutionApi,
 } from "@earendil-works/pi-durable";
 import type { Context } from "@earendil-works/chord";
-import { JobRuns, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
+import { jobDef, resolveJobInput } from "./features/jobs/defs.js";
+import type { Jobs } from "./features/jobs/engine.js";
+import { JobRuns } from "./features/jobs/record.js";
 import { searchHistory } from "./history.js";
 import { Todos } from "./todos.js";
 import { PLAYGROUND_SECTION, TOOL_DESCRIPTIONS } from "./prompt.js";
