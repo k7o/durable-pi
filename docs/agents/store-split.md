@@ -19,7 +19,7 @@ in `/tmp/arch-review/store-callgraph.md`.
 | 8 · Conversations | done | `src/conversations.ts` (input, submissions, history, inbox, usage, tasks, labels); `tests/conversations.test.ts` (2 tests); `store.ts` 860 → 724 |
 | 9 · Agents | done | `src/agents.ts` (resolve, list, summary, detail, name, create, fork, configure); `tests/agents.test.ts` (3 tests); `store.ts` 724 → 588 |
 | 10 · Playground | done | `src/playground.ts` (App State, job start, approval); existing demo/job tests unchanged; `store.ts` 588 → 547 |
-| 11 · Root + rename | done | `src/device.ts` replaces `src/store.ts`; `Store` → `Device`; `tempStore` → `tempDevice`; no SQL, no fs, no harness construction in the root; all suites green (backend 49, SDK 14, TUI, playground); see [Code review fixes](#code-review-fixes) |
+| 11 · Root + rename | done | `src/device.ts` replaces `src/store.ts`; `Store` → `Device`; `tempStore` → `tempDevice`; 384 lines against the behavioural guardrail (no SQL, no fs, no construction, no non-join logic); all suites green (backend 49, SDK 14, TUI, playground); see [Code review fixes](#code-review-fixes) |
 
 Note: slices 1–3 are on one branch, `refactor/store-split`, with one commit per slice where the files allowed it (2 and 3 share `store.ts`, so they are one commit).
 
@@ -76,7 +76,7 @@ across modules.
 | Q6 | `Catalog` owns all six `catalog.sqlite` tables; `lockFile` moves to `locks.ts` |
 | Q7 | Names: `Catalog`, `SessionRuntime`, `Agents`, `Conversations`, `Models`, `Compaction`, `Documents`, `Playground`, `Changes` |
 | Q8 | New contract test at the new seam; existing integration tests untouched |
-| Q9 | Root has no SQL, no `node:fs`, no harness/registry construction |
+| Q9 | Root has no SQL, no `node:fs`, no harness/registry construction, and no logic beyond its documented joins (line count is not the measure) |
 | Q10 | One slice per change, flat files in `src/` |
 | Q11 | `Conversations` is the fifth module (the 16-method closed set) |
 | Q12 | `Models` and `Compaction` are modules; browsing stays in `SessionRuntime`; `deviceInfo` in the root |
@@ -107,12 +107,13 @@ already live. The root then wires `Models.validate → Catalog.insertSession →
 Agents.sessionSummary`, and `Catalog.spawnOwner → Agents.resolve → Conversations.send` for
 `spawnSession`. Result: every module edge points one way.
 
-### Correction B (needs your yes): facade size
+### Correction B (accepted): facade guardrail
 
-Q9's target of ≤150 lines assumed ~40 delegates. With 47 one-line delegations plus wiring, the root
-will land at **150–200 lines**. Proposed guardrail: ≤200, and every body is a one-line delegation or
-a documented join (`tree`, `sessionSummary`, `preview`, `rename`, `create`, `spawnSession`). If it
-exceeds 200, stop and revisit a boundary.
+Q9's line target was the wrong measure. **The accepted guardrail is now behavioural:** the root may
+contain wiring, one-line delegations, and the documented joins (`deviceInfo`, `tree`,
+`sessionSummary`, `sessionSummaryBase`, `rename`, `create`, `spawnSession`, `preview`). It may not
+contain SQL, filesystem access, harness/registry construction, or any other algorithm. `device.ts`
+lands at 384 lines against that rule and is accepted.
 
 ### Factual corrections (no answer needed, but please confirm you agree)
 
@@ -357,11 +358,10 @@ Two reviews ran on `05e9090...HEAD` (standards and spec). Addressed:
   `device.models`.
 - `conversations` tests now cover inbox coercion and abort.
 
-Still open from the review: `device.ts` is **384 lines**, above the ≤200 guardrail. The extra is 45
-one-line delegates plus `create`, `spawnSession`, `rename`, `preview`, `deviceInfo`, `tree`,
-`sessionSummary*`, and the two extension delegates. Closing the gap means either extracting the wire
-projections (`deviceInfo`, `tree`, `sessionSummary*`) and the two session use cases into modules, or
-re-pointing routes/streams at modules and deleting the facade (reopens Q1).
+The root-size finding is closed by decision: the guardrail is behavioural (Correction B), and
+`device.ts` passes it — 45 one-line delegates plus the documented joins, no SQL, no fs, no harness
+construction, no other algorithm. Extracting the wire projections or re-pointing callers remains a
+possible future slice, not a debt.
 
 ## Final verification
 
@@ -382,7 +382,7 @@ job run.
 
 1. **Correction A** — move `create`/`spawnSession` to the root (revising Q3) so the module graph is
    acyclic.
-2. **Correction B** — accept a 150–200 line root with the "delegation or documented join" rule.
+2. **Correction B** — accept the root on the behavioural rule (delegation or documented join; no SQL/fs/construction/algorithm), not a line count.
 3. The four factual corrections above (staged grep, `preview` and `agentDoc` placement, notification
    ownership, `streams.ts` edits).
 
