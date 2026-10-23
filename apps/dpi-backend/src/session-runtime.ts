@@ -34,7 +34,7 @@ import { JobRuns } from "./features/jobs/record.js";
 import { lockFile } from "./locks.js";
 import type { Models } from "./models.js";
 import type { SharedState } from "./shared-state.js";
-import { Todos } from "./todos.js";
+import { Todos } from "./features/todos/doc.js";
 import { CODING_WRITES, withWrites } from "./tool-policy.js";
 
 type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void; jobs: Jobs; addons: Addons };

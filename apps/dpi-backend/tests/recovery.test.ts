@@ -7,7 +7,7 @@ import { defineTask, type TaskId, type ToolExecutionApi, type Tx } from "@earend
 import { DpiClient } from "../../dpi-sdk/src/client.js";
 import type { JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
 import { TodoTool } from "../src/extensions.js";
-import { TODOS_DOC, type TodosDoc } from "../src/todos.js";
+import { TODOS_DOC, type TodosDoc } from "../src/features/todos/doc.js";
 import { bootServer, faux, newToken, tempDevice, until } from "./helpers.js";
 
 test("SIGKILL restart resumes a durable job from its checkpoint with no client attached", async () => {

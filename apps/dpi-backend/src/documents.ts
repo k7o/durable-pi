@@ -8,7 +8,7 @@ import { notFound } from "./errors.js";
 import { Workspace } from "./extensions.js";
 import { JobRuns } from "./features/jobs/record.js";
 import type { SharedState } from "./shared-state.js";
-import { Todos, TODOS_DOC } from "./todos.js";
+import { Todos, TODOS_DOC } from "./features/todos/doc.js";
 
 const AGENT_DOCS = {
   [JOB_RUNS_DOC]: { token: JobRuns, empty: { counts: {}, items: {} } },

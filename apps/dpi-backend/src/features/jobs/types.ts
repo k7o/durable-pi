@@ -4,7 +4,7 @@
 import type { JsonValue } from "@earendil-works/chord";
 import type { JobDef, JobInputValue, JobStepKind } from "../../../../dpi-sdk/src/jobs.js";
 import type { SharedState } from "../../shared-state.js";
-import type { TodoDigest, TodosDoc } from "../../todos.js";
+import type { TodoDigest, TodosDoc } from "../todos/doc.js";
 
 export type Values = Record<string, JobInputValue>;
 export type Data = Record<string, JsonValue>;

@@ -39,7 +39,7 @@ import { type SpawnSession } from "./extensions.js";
 import { JOB_DEFS } from "./features/jobs/defs.js";
 import { lockFile } from "./locks.js";
 import { Models } from "./models.js";
-import { Playground } from "./playground.js";
+import { Playground } from "./demo.js";
 import type { ProviderId } from "./provider.js";
 import { SessionRuntime } from "./session-runtime.js";
 import { SharedState } from "./shared-state.js";
