@@ -1,7 +1,7 @@
 # Feature split: plan
 
-Status: **approved; slices 0 and 1 landed** (see [Progress](#progress)). Slice 2 is not started and no
-source file has moved. The store split landed first (`docs/agents/store-split.md`),
+Status: **implemented, slices 0–6** (see [Progress](#progress)). The store split landed first
+(`docs/agents/store-split.md`),
 which is what makes this one small: there is a composition root to assemble features from, so the
 remaining clutter is two hub files, not three.
 
@@ -18,11 +18,38 @@ collapse are both in. Implement in slices, one commit each.
 | 3 · Jobs by job | done | `features/jobs/{workspace-snapshot,release-check,change-watch,todo-digest}.ts` (one `JobModule` each: definition plus handler per phase), `defs.ts` (`JOB_DEFS` in the same order, `jobDef`, `resolveJobInput`, `HANDLERS`), and `shared.ts` (the `RESULT_ROOT` path, `clip`, `inDir`, `label` that more than one job shares — an addition to this plan's file list); every definition and handler is whitespace-for-whitespace the same text; `jobs.ts` keeps the engine and phase runtime and re-exports `JOB_DEFS`/`jobDef`/`resolveJobInput`, so old import paths still work; `npm run check` clean, 53/53 tests pass |
 | 4 · Phase runtime | done | `features/jobs/runtime.ts` (dispatch: `runPhase`, `finish`, `fail`, `approvalPhase`), plus `phase.ts` (the `Phase` object a handler gets), `record.ts` (`JobRuns`, run types, `runOf`/`upsertStep`/`endRun`), `approval.ts` (the approval task) and `engine.ts` (`createJobs`, `start`, `Jobs`) — the plan named one runtime file, which would have been ~390 lines; `jobs.ts` deleted; no module outside `features/jobs/` imports the phase API; `npm run check` clean, 53/53 tests pass |
 | 5 · Tools by feature | done | `features/app-state/{doc,tools}.ts`, `features/todos/{doc,tools}.ts` (`src/todos.ts` moved here), `features/history/tool.ts`, `features/sessions/{types,tools}.ts`, `features/side-effects/{pager,tool}.ts`, `features/jobs/tools.ts`, and `features/receipt.ts` for the `demo.receipt` document the App State write and `run_durable_job` share (an addition to this plan's list); `src/playground.ts` assembles and keeps `createPlayground`'s four arguments; the store-split `Playground` class moved to `src/demo.ts` (same class, same behaviour) to free the name this plan wanted; tool order unchanged (the plan's sketch put the session tools before the pager, which would have reordered the prompt — the contract test pins the shipped order); `extensions.ts` is a 6-line shim; `npm run check` clean, 53/53 tests pass |
-| 6 · Retire the hubs | todo | `extensions.ts` deleted; README and `docs/agents` point at the new paths |
+| 6 · Retire the hubs | done | `extensions.ts` deleted, its five importers name their new paths; `Workspace`, `SpawnSession` and the conversation documents live with their owners; `documents.ts` holds one `CONVERSATION_DOCS` list that the registry, the reads and `seedConversation` all use, so `session-runtime.ts` no longer names a document; no backend source file over 300 lines except `device.ts` (384) and `model-catalog.ts` (300); `npm run check` clean, 53/53 tests pass; hub `build`, `lint` and `tests` pass (`just hub check` by hand, since `just` is not installed in this sandbox) |
 
-Note: slices 0 and 1 are on `refactor/feature-split`, one commit each. Slices 2–6 are not started and no source file has
-moved except the new `src/prompt.ts`. See [Code review fixes](#code-review-fixes) for the third commit.
+Note: every slice is one commit on `refactor/feature-split`, in order 0 → 6, each gated on
+`cd apps/dpi-backend && npm run check && npm test`. See [Code review fixes](#code-review-fixes) for the
+review of slices 0–1 and [Landed layout](#landed-layout) for the files that differ from the target tree.
 
+## Landed layout
+
+The target tree above was a sketch, and the implementation needed more files than it named. Everything
+it listed exists; these are the additions, each with one reason to change:
+
+```
+src/
+  demo.ts                     the store-split `Playground` class, moved to free the playground.ts name
+  playground.ts               the assembler (this plan's file)
+  extensions.ts               DELETED by slice 6
+  documents.ts                one CONVERSATION_DOCS list: kind registry, reads and seeding
+  features/
+    receipt.ts                demo.receipt, shared by update_state and run_durable_job
+    app-state/doc.ts          Workspace moved out of extensions.ts
+    sessions/types.ts         SpawnSession moved out of extensions.ts
+    todos/doc.ts              src/todos.ts, plus the todo receipt document
+    jobs/shared.ts            RESULT_ROOT and the helpers two jobs share
+    jobs/record.ts            demo.job-runs, the run types, runOf/upsertStep/endRun
+    jobs/phase.ts             the Phase object a handler receives
+    jobs/approval.ts          the approval task
+    jobs/engine.ts            createJobs, start, Jobs
+```
+
+Tool order is unchanged. The plan's slice 5 sketch listed the session tools before the pager; the
+shipped order is `ping_on_call_engineer`, then `subagent`, `start_session`, `handoff`, which is what
+the contract test pins.
 ## Goal
 
 Turn `jobs.ts` (840 lines) and `extensions.ts` (581) into feature directories with one reason to

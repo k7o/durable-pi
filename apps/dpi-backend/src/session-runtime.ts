@@ -7,12 +7,13 @@
 //     device.ts                composition root: joins across modules, no SQL, no fs, no harness
 //       agents.ts              resolve, list, create, fork, configure, and agent projections
 //       conversations.ts       send, abort, withdraw, entries, transcript, tasks
-//       playground.ts          demo endpoints: App State writes, start a job, answer an approval
-//       documents.ts           reads for GET .../docs/:kind through the kind registry
+//       demo.ts                demo endpoints: App State writes, start a job, answer an approval
+//       documents.ts           reads for GET .../docs/:kind, and the one list of conversation documents
+//       playground.ts          the assembler: features in, the one `playground` extension out
 //       THIS FILE              one Harness per open session, plus its Jobs, Addons and registry
 //         harness              pi-durable: entries, documents, tasks and submissions, one commit each
-//           jobs.ts            a run is a task; each phase records steps and commits a checkpoint
-//           extensions.ts      a tool runs in its own task and commits its effect before answering
+//           features/jobs/     a run is a task; each phase records steps and commits a checkpoint
+//           features/*/tools   a tool runs in its own task and commits its effect before answering
 //         shared-state.ts      chord replicated App State, shared by every session and agent
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { Harness, createRegistry } from "@earendil-works/pi-durable";
@@ -28,7 +29,9 @@ import type { Catalog, SessionRow } from "./catalog.js";
 import type { ChangeFeed } from "./changes.js";
 import type { Compaction } from "./compaction.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
-import { createPlayground, Workspace, type SpawnSession } from "./extensions.js";
+import { seedConversation } from "./documents.js";
+import { createPlayground } from "./playground.js";
+import type { SpawnSession } from "./features/sessions/types.js";
 import { createJobs, type Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";
 import { lockFile } from "./locks.js";
@@ -144,9 +147,7 @@ export class SessionRuntime {
           registry,
           env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? row.cwd, shellEnv }),
           conversationCreated: async (tx, c) => {
-            await tx.doc(Workspace, c.id);
-            await tx.doc(JobRuns, c.id);
-            await tx.doc(Todos, c.id);
+            await seedConversation(tx, c.id);
           },
           settings: {
             extensions: [coding, playground],

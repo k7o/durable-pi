@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "../src/documents.js";
-import { createPlayground, type SpawnSession } from "../src/extensions.js";
+import type { SpawnSession } from "../src/features/sessions/types.js";
+import { createPlayground } from "../src/playground.js";
 import { JOB_DEFS } from "../src/features/jobs/defs.js";
 import type { Jobs } from "../src/features/jobs/engine.js";
 import { TOOL_DESCRIPTIONS } from "../src/prompt.js";

@@ -1,7 +1,7 @@
 // The playground's prompt text: the section that orients the agent and the tool-level description of every tool it
 // is offered. Descriptions and their order are prompt (PI-208), so they live here rather than beside the code that
 // declares each tool, and a wording change is a behavior change, not a tidy-up. Argument descriptions stay with
-// their `Type.Object` schema in extensions.ts, next to the parameters they constrain.
+// their `Type.Object` schema in the feature's `tools.ts`, next to the parameters they constrain.
 
 /**
  * Tool descriptions by tool name, in the order `createPlayground` offers the tools. The contract test asserts that
