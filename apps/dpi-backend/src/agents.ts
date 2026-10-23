@@ -96,8 +96,9 @@ export class Agents {
   }
 
   async summary(row: SessionRow, c: Conversation): Promise<AgentSummary> {
-    const agents = await this.list(row);
-    return agents.find((a) => a.id === (c.id as number))!;
+    const summary = (await this.list(row)).find((a) => a.id === (c.id as number));
+    if (!summary) throw notFound(`No agent ${c.id} in session ${row.name}`);
+    return summary;
   }
 
   /** Every tool of the agent's selected extensions, first definition per name, and the names it is offered. */

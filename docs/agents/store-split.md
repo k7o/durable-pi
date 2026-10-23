@@ -19,7 +19,7 @@ in `/tmp/arch-review/store-callgraph.md`.
 | 8 · Conversations | done | `src/conversations.ts` (input, submissions, history, inbox, usage, tasks, labels); `tests/conversations.test.ts` (2 tests); `store.ts` 860 → 724 |
 | 9 · Agents | done | `src/agents.ts` (resolve, list, summary, detail, name, create, fork, configure); `tests/agents.test.ts` (3 tests); `store.ts` 724 → 588 |
 | 10 · Playground | done | `src/playground.ts` (App State, job start, approval); existing demo/job tests unchanged; `store.ts` 588 → 547 |
-| 11 · Root + rename | done | `src/device.ts` replaces `src/store.ts`; `Store` → `Device`; `tempStore` → `tempDevice`; no SQL, no fs, no harness construction in the root; all suites green (backend 47, SDK 14, TUI, playground) |
+| 11 · Root + rename | done | `src/device.ts` replaces `src/store.ts`; `Store` → `Device`; `tempStore` → `tempDevice`; no SQL, no fs, no harness construction in the root; all suites green (backend 49, SDK 14, TUI, playground); see [Code review fixes](#code-review-fixes) |
 
 Note: slices 1–3 are on one branch, `refactor/store-split`, with one commit per slice where the files allowed it (2 and 3 share `store.ts`, so they are one commit).
 
@@ -340,6 +340,29 @@ exposes, no public method removed until slice 11. Every slice runs
 - **Unknown handler:** a job def with no handler still fails at run time; slice 10 does not change
   that (candidate 4 handles it later).
 
+## Code review fixes
+
+Two reviews ran on `05e9090...HEAD` (standards and spec). Addressed:
+
+- agent extension selection moved out of the root into `ExtensionSelection` in `addons.ts`, so the root's
+  `extensionsOf`/`setExtension` are delegations again.
+- `SessionRuntime.opened` and `.errors` are private; the root uses `resumeAll()`, `error(sessionId)`.
+  `scanAll` no longer leaks through the root.
+- `documents.ts` keeps one owner for `app.shared-state` and each agent-doc entry carries its empty value
+  (no kind cascade).
+- `agents.summary` throws a typed `not_found` instead of a non-null assertion.
+- archive clears the runtime's cache and errors **before** `Catalog.forgetSession` notifies.
+- subscribe/notify are prototype methods again, so the delegate shape is uniform.
+- `main.ts`, `routes.ts`, `streams.ts` name the root `device`; `main.ts` reads `deviceInfo()` instead of
+  `device.models`.
+- `conversations` tests now cover inbox coercion and abort.
+
+Still open from the review: `device.ts` is **384 lines**, above the ≤200 guardrail. The extra is 45
+one-line delegates plus `create`, `spawnSession`, `rename`, `preview`, `deviceInfo`, `tree`,
+`sessionSummary*`, and the two extension delegates. Closing the gap means either extracting the wire
+projections (`deviceInfo`, `tree`, `sessionSummary*`) and the two session use cases into modules, or
+re-pointing routes/streams at modules and deleting the facade (reopens Q1).
+
 ## Final verification
 
 ```bash
@@ -347,7 +370,7 @@ cd apps/dpi-backend && npm run check && npm test
 cd apps/dpi-sdk && npm run check && npm test
 just test unit
 git diff --stat            # expect: src/store.ts → src/device.ts plus new src modules, tests, GLOSSARY.md
-grep -nE "DatabaseSync|\.prepare\(|node:fs|new Harness|createRegistry" apps/dpi-backend/src/device.ts
+grep -nE "DatabaseSync|this\.catalog\.prepare\(|node:fs|new Harness|createRegistry" apps/dpi-backend/src/device.ts
 git diff --stat -- apps/dpi-backend/API.md   # empty
 ```
 

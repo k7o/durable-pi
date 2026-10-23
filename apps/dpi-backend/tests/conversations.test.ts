@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
+import { InboxDoc } from "@earendil-works/pi-durable";
 import { Catalog, type SessionRow } from "../src/catalog.js";
 import { ChangeFeed } from "../src/changes.js";
 import { Compaction } from "../src/compaction.js";
@@ -80,6 +81,49 @@ test("conversations: accepts an input, settles it and reads the transcript", asy
     assert.equal(next.items.length, 1);
 
     assert.deepEqual(await t.conversations.inbox(t.h, t.c), []);
+  } finally {
+    await t.cleanup();
+  }
+});
+
+test("conversations: coerces queued inbox content to text", async () => {
+  const t = await tempConversation();
+  try {
+    await t.h.commit(async (tx) => {
+      const doc = await tx.doc(InboxDoc, t.c.id);
+      doc.items = [
+        { id: 1, mode: "followUp", content: "plain text" },
+        {
+          id: 2,
+          mode: "steer",
+          content: [
+            { type: "text", text: "a" },
+            { type: "text", text: "b" },
+          ],
+        },
+        { id: 3, mode: "write", content: "replaced context" },
+      ] as never;
+    }, ctx);
+    assert.deepEqual(await t.conversations.inbox(t.h, t.c), [
+      { id: 1, mode: "followUp", content: "plain text" },
+      { id: 2, mode: "steer", content: "ab" },
+      { id: 3, mode: "write", content: "Context update" },
+    ]);
+  } finally {
+    await t.cleanup();
+  }
+});
+
+test("conversations: aborts a run in progress", async () => {
+  const t = await tempConversation();
+  try {
+    const submission = await t.conversations.send(t.c, {
+      content: `slow: ${"x".repeat(400)}`,
+      requestId: "slow-1",
+    });
+    await t.conversations.abort(t.c, false);
+    const result = await t.conversations.settled(t.h, submission.id as number, 20000);
+    assert.notEqual(result.status, "done");
   } finally {
     await t.cleanup();
   }

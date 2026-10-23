@@ -126,13 +126,13 @@ export function diffActivity(prev: DeviceTree | undefined, next: DeviceTree): Ac
 
 // ---------------------------------------------------------------- device scope
 
-export function deviceStream(store: Device, req: Request, res: Response) {
+export function deviceStream(device: Device, req: Request, res: Response) {
   const docs = parseDocs(req.query.docs, DEVICE_DOC_KINDS);
   const sse = openSse(res, { kind: "device" });
   let previous: DeviceTree | undefined;
   const push = coalesce(async () => {
     if (sse.closed) return;
-    const tree = await store.tree();
+    const tree = await device.tree();
     const { at: _at, ...stable } = tree;
     const items = diffActivity(previous, tree);
     previous = tree;
@@ -140,45 +140,45 @@ export function deviceStream(store: Device, req: Request, res: Response) {
     if (items.length) {
       for (const item of items)
         if (item.type === "agent.finished") {
-          const row = store.list().find((r) => r.id === item.sessionId);
-          if (row) item.preview = await store.preview(row, item.agentId).catch(() => undefined);
+          const row = device.list().find((r) => r.id === item.sessionId);
+          if (row) item.preview = await device.preview(row, item.agentId).catch(() => undefined);
         }
       sse.send({ type: "activity", items });
     }
     for (const kind of docs) {
-      const doc = await store.deviceDoc(kind);
+      const doc = await device.deviceDoc(kind);
       sse.sendIfChanged(`doc:${kind}`, { type: "doc", kind, value: doc.value, revision: doc.revision });
     }
   }, 250);
-  sse.onClose(store.subscribe(push));
+  sse.onClose(device.subscribe(push));
   sse.onClose(() => push.cancel());
   void push.now();
 }
 
 // ---------------------------------------------------------------- session scope
 
-export async function sessionStream(store: Device, row: SessionRow, res: Response) {
-  const h = store.harness(row);
+export async function sessionStream(device: Device, row: SessionRow, res: Response) {
+  const h = device.harness(row);
   const sse = openSse(res, { kind: "session", sessionId: row.id });
   const watch = await h.watchTaskGraph(ctx);
   const tasksOf = (value: { tasks: Readonly<Record<string, unknown>> }) =>
-    Object.values(value.tasks).map((t) => store.taskNode(t));
-  let tasks = await store.labelTasks(h, tasksOf(watch.value));
-  sse.send({ type: "session", agents: await store.agents(row, tasks), tasks, usage: await store.usage(h) });
+    Object.values(value.tasks).map((t) => device.taskNode(t));
+  let tasks = await device.labelTasks(h, tasksOf(watch.value));
+  sse.send({ type: "session", agents: await device.agents(row, tasks), tasks, usage: await device.usage(h) });
   watch.start(async (value) => {
     if (sse.closed) return;
-    tasks = await store.labelTasks(h, tasksOf(value));
+    tasks = await device.labelTasks(h, tasksOf(value));
     sse.sendIfChanged("tasks", { type: "tasks", tasks });
     push();
   });
   const push = coalesce(async () => {
-    if (sse.closed || !store.isOpen(row.id)) return;
-    sse.sendIfChanged("agents", { type: "agents", agents: await store.agents(row, tasks) });
-    sse.sendIfChanged("usage", { type: "usage", usage: await store.usage(h) });
+    if (sse.closed || !device.isOpen(row.id)) return;
+    sse.sendIfChanged("agents", { type: "agents", agents: await device.agents(row, tasks) });
+    sse.sendIfChanged("usage", { type: "usage", usage: await device.usage(h) });
   }, 250);
   const off = h.subscribeCommits(() => push());
-  // Agent names live in the device catalog, not the harness: a rename only fires the store's change feed.
-  const offCatalog = store.subscribe(() => push());
+  // Agent names live in the device catalog, not the harness: a rename only fires the device's change feed.
+  const offCatalog = device.subscribe(() => push());
   sse.onClose(() => {
     off();
     offCatalog();
@@ -190,7 +190,7 @@ export async function sessionStream(store: Device, row: SessionRow, res: Respons
 // ---------------------------------------------------------------- agent scope
 
 export async function agentStream(
-  store: Device,
+  device: Device,
   target: { row: SessionRow; h: Harness; c: Conversation },
   req: Request,
   res: Response,
@@ -202,18 +202,18 @@ export async function agentStream(
   sse.send({
     type: "snapshot",
     snapshot: JSON.parse(JSON.stringify(stream.snapshot)),
-    inbox: await store.inbox(h, c),
+    inbox: await device.inbox(h, c),
   });
   const pushDocs = coalesce(async () => {
     for (const kind of docs)
-      sse.sendIfChanged(`doc:${kind}`, { type: "doc", kind, value: await store.agentDoc(h, c, kind) });
+      sse.sendIfChanged(`doc:${kind}`, { type: "doc", kind, value: await device.agentDoc(h, c, kind) });
   }, 150);
   await pushDocs.now();
   stream.start(async (events) => {
     if (sse.closed) return;
     sse.send({ type: "batch", events: JSON.parse(JSON.stringify(events)) });
     if (events.some((e) => e.type === "inbox_update" || e.type === "snapshot"))
-      sse.send({ type: "inbox", items: await store.inbox(h, c) });
+      sse.send({ type: "inbox", items: await device.inbox(h, c) });
   });
   const offDocs = docs.length ? h.subscribeCommits(() => pushDocs()) : () => {};
   sse.onClose(() => {

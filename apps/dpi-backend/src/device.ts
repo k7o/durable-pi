@@ -2,7 +2,7 @@
 // it opens the device's modules and holds the few use cases that span them. Every other method is a
 // delegation or a documented join; see docs/agents/store-split.md.
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
-import type { Conversation, ConversationId, ConversationRecord, Harness, ModelRef } from "@earendil-works/pi-durable";
+import type { Conversation, ConversationId, Harness, ModelRef } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
 import { hostname, platform } from "node:os";
 import { join, resolve } from "node:path";
@@ -27,7 +27,7 @@ import {
   type WireEntry,
 } from "../../dpi-sdk/src/api.js";
 import { lastAssistantText } from "../../dpi-sdk/src/transcript.js";
-import { ADDON_INFO, PROMPTS, PromptChecklist } from "./addons.js";
+import { ExtensionSelection } from "./addons.js";
 import { Agents, type Resolved } from "./agents.js";
 import { Catalog, type SessionRow } from "./catalog.js";
 import { ChangeFeed } from "./changes.js";
@@ -69,6 +69,7 @@ export class Device {
   documents!: Documents;
   sessions!: SessionRuntime;
   agentView!: Agents;
+  agentExtensions!: ExtensionSelection;
   playground!: Playground;
   private unlockShared?: () => void;
 
@@ -133,12 +134,13 @@ export class Device {
         sessions: device.sessions,
         conversations: device.conversations,
       });
+      device.agentExtensions = new ExtensionSelection(device.sessions, changes);
       device.shared.harness.subscribeCommits(() => device.notify());
       await device.sessions.prepare();
       await device.sessions.openAll(device.list());
       if (!(await device.shared.initialized()))
         await device.shared.initialize({ goal: "Explore durable agents", counter: 0, notes: [] });
-      for (const { harness } of device.sessions.opened.values()) harness.resume();
+      device.sessions.resumeAll();
       return device;
     } catch (e) {
       await device.close().catch(() => {});
@@ -148,8 +150,12 @@ export class Device {
 
   // ------------------------------------------------------------ change feed
 
-  subscribe = (fn: () => void) => this.changes.subscribe(fn);
-  notify = () => this.changes.notify();
+  subscribe(fn: () => void) {
+    return this.changes.subscribe(fn);
+  }
+  notify() {
+    this.changes.notify();
+  }
 
   // ------------------------------------------------------------ device
 
@@ -252,7 +258,6 @@ export class Device {
   archive = (row: SessionRow) => this.sessions.archive(row);
   openAgent = (row: SessionRow, create = false, thinkingLevel: ThinkingLevel = "low") =>
     this.sessions.open(row, create, thinkingLevel);
-  scanAll = (h: Harness): Promise<ConversationRecord[]> => this.sessions.scanAll(h);
 
   // ------------------------------------------------------------ agents
 
@@ -310,48 +315,10 @@ export class Device {
 
   // ------------------------------------------------------------ custom extensions (per agent)
 
-  async extensionsOf(row: SessionRow, c: Conversation): Promise<AgentExtensions> {
-    const active = new Set((await c.agent(ctx)).extensions.map((e) => e.name));
-    const checked = (await this.harness(row).snapshot(PromptChecklist, c.id, ctx))?.enabled ?? [PROMPTS[0].id];
-    return {
-      builtIn: [...active].filter((name) => !ADDON_INFO.some((a) => a.name === name)),
-      extensions: ADDON_INFO.map((info) => ({
-        ...info,
-        enabled: active.has(info.name),
-        ...(info.name === "system-prompts"
-          ? { prompts: PROMPTS.map(({ id, title, description, text }) => ({ id, title, description, text, enabled: checked.includes(id) })) }
-          : {}),
-      })),
-    };
-  }
-
-  /** `{name, enabled}` edits the agent's extension selection; `{prompt, enabled}` edits its prompt checklist. */
-  async setExtension(row: SessionRow, c: Conversation, body: Record<string, unknown>) {
-    if (typeof body.enabled !== "boolean") throw invalid("enabled must be a boolean");
-    const enabled = body.enabled;
-    if (typeof body.name === "string") {
-      const extension = this.sessions.addons(row).all[body.name];
-      if (!extension) throw invalid(`Unknown extension ${body.name}. Known: ${ADDON_INFO.map((a) => a.name).join(", ")}`);
-      // An array is the agent's whole selection. An { add | remove } object would edit the host default instead and
-      // replace the previous edit, so turning one extension on would turn the other off.
-      const rank = (name: string) => ADDON_INFO.findIndex((a) => a.name === name);
-      const others = (await c.agent(ctx)).extensions.filter((e) => e.name !== extension.name);
-      const next = (enabled ? [...others, extension] : others).sort((a, b) => rank(a.name) - rank(b.name));
-      await c.configure({ extensions: next }, ctx);
-    } else if (typeof body.prompt === "string") {
-      const prompt = body.prompt;
-      if (!PROMPTS.some((p) => p.id === prompt)) throw invalid(`Unknown prompt ${prompt}. Known: ${PROMPTS.map((p) => p.id).join(", ")}`);
-      await c.commit(async (tx) => {
-        const doc = await tx.doc(PromptChecklist, c.id);
-        const next = new Set(doc.enabled);
-        if (enabled) next.add(prompt);
-        else next.delete(prompt);
-        doc.enabled = PROMPTS.map((p) => p.id).filter((id) => next.has(id));
-      }, ctx);
-    } else throw invalid("name or prompt is required");
-    this.notify();
-    return this.extensionsOf(row, c);
-  }
+  extensionsOf = (row: SessionRow, c: Conversation): Promise<AgentExtensions> =>
+    this.agentExtensions.of(row, c);
+  setExtension = (row: SessionRow, c: Conversation, body: Record<string, unknown>): Promise<AgentExtensions> =>
+    this.agentExtensions.set(row, c, body);
 
   // ------------------------------------------------------------ compaction (per session)
 
@@ -378,7 +345,7 @@ export class Device {
         ...this.sessionSummaryBase(row),
         busy: false,
         agents: [],
-        error: this.sessions.errors.get(row.id) ?? "Session unavailable",
+        error: this.sessions.error(row.id) ?? "Session unavailable",
       };
     const agents = await this.agents(row);
     return { ...this.sessionSummaryBase(row), busy: agents.some((a) => a.busy), agents };

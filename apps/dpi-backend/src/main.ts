@@ -9,7 +9,7 @@ import { errorMiddleware } from "./errors.js";
 import { v1 } from "./routes.js";
 
 const config = loadConfig();
-const store = await Device.open({
+const device = await Device.open({
   dataDir: config.dataDir,
   startDirs: config.startDirs,
   name: config.name,
@@ -20,16 +20,16 @@ const store = await Device.open({
 const app = express();
 app.disable("x-powered-by");
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
-app.use("/v1", bearerAuth(config.token), express.json({ limit: "256kb" }), v1(store));
+app.use("/v1", bearerAuth(config.token), express.json({ limit: "256kb" }), v1(device));
 app.use((_req, res) => res.status(404).json({ error: { code: "not_found", message: "Route not found" } }));
 app.use(errorMiddleware);
 
 const server = createServer(app);
 server.keepAliveTimeout = 65_000;
 server.listen(config.port, config.host, () => {
-  console.log(`dpi-backend "${config.name}" (uid ${store.uid}) on http://${config.host}:${config.port}`);
+  console.log(`dpi-backend "${config.name}" (uid ${device.uid}) on http://${config.host}:${config.port}`);
   console.log(`data: ${config.dataDir}  start dirs: ${config.startDirs.join(", ")}  provider: ${config.provider}`);
-  console.log(`default model: ${config.defaultModel}  models: ${store.models.list.length}`);
+  console.log(`default model: ${config.defaultModel}  models: ${device.deviceInfo().models.length}`);
   if (config.host === "0.0.0.0")
     for (const addresses of Object.values(networkInterfaces()))
       for (const a of addresses ?? [])
@@ -42,7 +42,7 @@ const shutdown = async () => {
   closing = true;
   server.close();
   server.closeAllConnections();
-  await store.close();
+  await device.close();
   process.exit(0);
 };
 process.on("SIGTERM", () => void shutdown());

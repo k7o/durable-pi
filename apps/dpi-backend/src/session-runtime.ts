@@ -39,8 +39,8 @@ export interface SessionRuntimeOptions {
 }
 
 export class SessionRuntime {
-  readonly opened = new Map<string, Opened>();
-  readonly errors = new Map<string, string>();
+  private readonly opened = new Map<string, Opened>();
+  private readonly errors = new Map<string, string>();
 
   constructor(private readonly options: SessionRuntimeOptions) {}
 
@@ -53,22 +53,27 @@ export class SessionRuntime {
     return this.opened.has(sessionId);
   }
 
-  harness(row: SessionRow): Harness {
+  private openedFor(row: SessionRow): Opened {
     const opened = this.opened.get(row.id);
     if (!opened) throw this.unavailable(row);
-    return opened.harness;
+    return opened;
+  }
+
+  harness(row: SessionRow): Harness {
+    return this.openedFor(row).harness;
   }
 
   jobs(row: SessionRow): Jobs {
-    const opened = this.opened.get(row.id);
-    if (!opened) throw this.unavailable(row);
-    return opened.jobs;
+    return this.openedFor(row).jobs;
   }
 
   addons(row: SessionRow): Addons {
-    const opened = this.opened.get(row.id);
-    if (!opened) throw this.unavailable(row);
-    return opened.addons;
+    return this.openedFor(row).addons;
+  }
+
+  /** Why a session is unavailable, if it failed to open. */
+  error(sessionId: string): string | undefined {
+    return this.errors.get(sessionId);
   }
 
   private unavailable(row: SessionRow) {
@@ -80,6 +85,11 @@ export class SessionRuntime {
   }
 
   /** Open every session the catalog knows about, recording the ones that cannot open. */
+  /** Let every open harness resume its durable work. */
+  resumeAll() {
+    for (const { harness } of this.opened.values()) harness.resume();
+  }
+
   async openAll(rows: readonly SessionRow[], options: { create?: boolean; thinkingLevel?: ThinkingLevel } = {}) {
     for (const row of rows) {
       try {
@@ -200,9 +210,10 @@ export class SessionRuntime {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     }
-    this.options.catalog.forgetSession(row.id);
+    // Clear the runtime's own state before the catalog announces the deletion.
     this.options.compaction.forget(row.id);
     this.errors.delete(row.id);
+    this.options.catalog.forgetSession(row.id);
     return { archived: target };
   }
 
@@ -264,5 +275,3 @@ export class SessionRuntime {
     this.opened.clear();
   }
 }
-
-export type { Opened };
