@@ -119,3 +119,15 @@ test("session runtime: browses the device's starting folders", async () => {
     await t.cleanup();
   }
 });
+
+test("session runtime: resolves a session cwd against the first start dir", async () => {
+  const t = await tempRuntime();
+  try {
+    await mkdir(join(t.work, "project"));
+    assert.equal(await t.runtime.resolveCwd("project"), join(t.work, "project"));
+    assert.equal(await t.runtime.resolveCwd("~"), (await import("node:os")).homedir());
+    await assert.rejects(() => t.runtime.resolveCwd("missing"), /cwd must be an existing folder/);
+  } finally {
+    await t.cleanup();
+  }
+});

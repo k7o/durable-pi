@@ -8,10 +8,10 @@ import { DpiClient } from "../../dpi-sdk/src/client.js";
 import type { JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
 import { TodoTool } from "../src/extensions.js";
 import { TODOS_DOC, type TodosDoc } from "../src/todos.js";
-import { bootServer, faux, newToken, tempStore, until } from "./helpers.js";
+import { bootServer, faux, newToken, tempDevice, until } from "./helpers.js";
 
 test("SIGKILL restart resumes a durable job from its checkpoint with no client attached", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const token = newToken();
   const server = await bootServer({ home: join(t.root, "home"), startDirs: t.work, token });
   try {
@@ -53,7 +53,7 @@ const Live = defineTask<Record<string, never>, { phase: "wait" }, undefined>({
 });
 
 test("a replayed todo call applies its edit once: the task-scoped receipt", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   let store = await t.open();
   try {
     const session = await store.create({ name: "Todo replay", cwd: t.work, model: faux });
@@ -121,7 +121,7 @@ test("a replayed todo call applies its edit once: the task-scoped receipt", asyn
 });
 
 test("SIGKILL restart keeps demo.todos and the digest the job wrote", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const token = newToken();
   const server = await bootServer({ home: join(t.root, "home"), startDirs: t.work, token });
   try {

@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { faux, tempStore } from "./helpers.js";
+import { faux, tempDevice } from "./helpers.js";
 
 test("Shared App State persists across reload and is current across forks and sessions", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   let store = await t.open();
   try {
     const session = await store.create({ name: "State", cwd: t.work, model: faux });

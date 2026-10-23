@@ -12,9 +12,18 @@ in `/tmp/arch-review/store-callgraph.md`.
 | 1 · Locks + change feed | done | `src/locks.ts`, `src/changes.ts`; `tests/locks.test.ts`, `tests/changes.test.ts`; `npm run check` clean; 16/16 tests pass; `process.kill` no longer in `store.ts`; −33/+6 lines in `store.ts` |
 | 2 · Catalog | done | `src/catalog.ts` (`deviceUid`, 14 intent methods, schema + 24h GC, own lock); `tests/catalog.test.ts` (9 tests: uid, rows, resolve, names, model, compaction, replay, spawns, lock, GC); `store.ts` 1,171 → 1,103; `DatabaseSync`/`.prepare(` gone from `store.ts`; routes/streams unchanged; 26/26 tests pass. **Measured −68 lines, not ≥150:** the schema/constructor were smaller than estimated and delegates re-add lines. Guardrail restated: SQL-free + catalog contract tests, not a line count. |
 | 3 · Tool policy | done | `src/tool-policy.ts`; `writing`/`withWrites` mark tools at their definition; `WRITE_TOOLS` deleted; `todo` was missing from the old set and is now correctly a write (readOnly removes 9, not 8); `tests/tool-policy.test.ts` (4 tests); `store.test.ts` read-only asserts a literal list; `API.md` corrected; 30/30 tests pass |
-| 4 · Models | next | — |
+| 4 · Models | done | `src/models.ts` (provider registration, curated picker list, routing, validation, windows); `tests/models.test.ts` (2 tests); `store.ts` 1,092 → 1,021 |
+| 5 · Compaction | done | `src/compaction.ts` (defaults, saved thresholds, refit, forget); `tests/compaction.test.ts` (4 tests); `store.ts` 1,021 → 997 |
+| 6 · Documents | done | `src/documents.ts` (kind registry, `agentDoc`, `deviceDoc`); `tests/documents.test.ts`; `store.ts` 997 → 987 |
+| 7 · SessionRuntime | done | `src/session-runtime.ts` (open sessions, harness/jobs/addons, locks, archive, browse, cwd, start dirs); `tests/session-runtime.test.ts` (5 tests); `streams.ts` uses `isOpen`; `store.ts` 987 → 860 |
+| 8 · Conversations | done | `src/conversations.ts` (input, submissions, history, inbox, usage, tasks, labels); `tests/conversations.test.ts` (2 tests); `store.ts` 860 → 724 |
+| 9 · Agents | done | `src/agents.ts` (resolve, list, summary, detail, name, create, fork, configure); `tests/agents.test.ts` (3 tests); `store.ts` 724 → 588 |
+| 10 · Playground | done | `src/playground.ts` (App State, job start, approval); existing demo/job tests unchanged; `store.ts` 588 → 547 |
+| 11 · Root + rename | done | `src/device.ts` replaces `src/store.ts`; `Store` → `Device`; `tempStore` → `tempDevice`; no SQL, no fs, no harness construction in the root; all suites green (backend 47, SDK 14, TUI, playground) |
 
-Note: slices 1–3 are on one branch, `refactor/store-split`, with one commit per slice where the files allowed it (2 and 3 share `store.ts`, so they will be one commit).
+Note: slices 1–3 are on one branch, `refactor/store-split`, with one commit per slice where the files allowed it (2 and 3 share `store.ts`, so they are one commit).
+
+**Slice 11 overshoot:** `device.ts` is 417 lines, not ≤200. The extra is 40 one-line delegates (the price of Q1's facade keeping 64 call sites) plus eight use cases: `create`, `spawnSession`, `rename`, `preview`, `extensionsOf`, `setExtension`, `sessionSummaryBase`/`sessionSummary`, `tree`, `deviceInfo`. Every body is a delegation or one of those documented joins; no SQL, no fs, no harness construction. Shrinking further means either re-pointing routes/streams at modules (reopening Q1) or extracting agent-extension selection into its own module.
 
 ## Goal
 

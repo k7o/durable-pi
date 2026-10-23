@@ -7,7 +7,7 @@ import { DpiClient } from "../../dpi-sdk/src/client.js";
 import { AgentModel, SessionModel } from "../../dpi-sdk/src/models.js";
 import type { Frame } from "../../dpi-sdk/src/api.js";
 import { openSse } from "../src/streams.js";
-import { bootServer, delay, faux, newToken, tempStore, until } from "./helpers.js";
+import { bootServer, delay, faux, newToken, tempDevice, until } from "./helpers.js";
 
 function collect(stream: AsyncGenerator<Frame>, sink: Frame[], onFrame?: (f: Frame) => void) {
   return (async () => {
@@ -19,7 +19,7 @@ function collect(stream: AsyncGenerator<Frame>, sink: Frame[], onFrame?: (f: Fra
 }
 
 test("agent, session and device streams carry snapshots and deltas that reduce to the transcript", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const token = newToken();
   const server = await bootServer({ home: join(t.root, "home"), startDirs: t.work, token });
   const stop = new AbortController();

@@ -4,28 +4,28 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
-import type { Store } from "../src/store.js";
+import type { Device } from "../src/device.js";
 import { JOB_RUNS_DOC, type JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
-import { faux, tempStore, until } from "./helpers.js";
+import { faux, tempDevice, until } from "./helpers.js";
 
-const jobs = async (store: Store, session: string) => {
+const jobs = async (store: Device, session: string) => {
   const { h, c } = await store.resolveAgent(session, "main");
   return (await store.agentDoc(h, c, JOB_RUNS_DOC)) as JobRunsDoc;
 };
-const startJob = async (store: Store, session: string, job: string, input: Record<string, unknown> = {}) => {
+const startJob = async (store: Device, session: string, job: string, input: Record<string, unknown> = {}) => {
   const m = await store.resolveAgent(session, "main");
   return (await store.startJob(m.row, m.h, m.c, { job, input })).taskId;
 };
 
 test("sessions, browse, names, forks, jobs, restart recovery, approval, interruption, archive", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   let store = await t.open();
   try {
     const start = await store.browse("");
     assert.deepEqual(start.dirs.map((d) => d.path), [t.work]);
     // A missing start dir is created when the store opens.
     const missingStart = join(t.root, "fresh", "start");
-    const other = await (await import("../src/store.js")).Store.open({ ...t.options, dataDir: join(t.root, "data2"), startDirs: [missingStart] });
+    const other = await (await import("../src/device.js")).Device.open({ ...t.options, dataDir: join(t.root, "data2"), startDirs: [missingStart] });
     assert.ok(existsSync(missingStart));
     await other.close();
     const listing = await store.browse(t.work);
@@ -132,7 +132,7 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
 });
 
 test("start_session: an agent starts an independent session, once per tool call", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const store = await t.open();
   try {
     const parent = await store.create({ name: "Parent", cwd: "project", model: faux, thinkingLevel: "minimal" });
@@ -168,7 +168,7 @@ test("start_session: an agent starts an independent session, once per tool call"
 });
 
 test("custom extensions: jev-damage-control blocks rm -rf only while on; system-prompts renders the checked prompts", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const store = await t.open();
   try {
     await mkdir(join(t.work, "doomed"));
@@ -225,7 +225,7 @@ test("custom extensions: jev-damage-control blocks rm -rf only while on; system-
 });
 
 test("read only: the agent is offered only tools that read; turning it off restores them", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const store = await t.open();
   try {
     await mkdir(join(t.work, "kept"));

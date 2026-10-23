@@ -8,7 +8,7 @@ import {
   bootServer,
   freePort,
   newToken,
-  tempStore,
+  tempDevice,
   until,
   faux,
   delay,
@@ -70,7 +70,7 @@ const json = (body: unknown) => ({
 });
 
 test("hub: registry from YAML, monitoring, token-injecting proxy, guard, mux, offline and mismatch", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const tokenA = newToken();
   const tokenB = newToken();
   const a = await bootServer({

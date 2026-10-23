@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Store } from "../src/store.js";
+import { Device } from "../src/device.js";
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function until(fn: () => Promise<boolean>, timeout = 15000, what = "condition") {
@@ -14,7 +14,7 @@ export async function until(fn: () => Promise<boolean>, timeout = 15000, what = 
 }
 export const faux = { provider: "faux", modelId: "echo" };
 
-export async function tempStore() {
+export async function tempDevice() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-be-")));
   await mkdir(join(root, "work", "project", "nested"), { recursive: true });
   const options = { dataDir: join(root, "data"), startDirs: [join(root, "work")], name: "test", provider: "faux" as const };
@@ -22,7 +22,7 @@ export async function tempStore() {
     root,
     work: join(root, "work"),
     options,
-    open: () => Store.open(options),
+    open: () => Device.open(options),
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }

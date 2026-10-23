@@ -2,7 +2,7 @@
 // unique name; agent refs are a numeric id, `main`, or a unique name.
 import { Router, type Request, type Response, type NextFunction } from "express";
 import type { Conversation, Harness } from "@earendil-works/pi-durable";
-import { DEVICE_DOC_KINDS, type SessionRow, type Store } from "./store.js";
+import { DEVICE_DOC_KINDS, type SessionRow, type Device } from "./device.js";
 import { agentStream, deviceStream, sessionStream } from "./streams.js";
 import { idempotent } from "./idempotency.js";
 import { invalid } from "./errors.js";
@@ -23,7 +23,7 @@ const int = (value: unknown, name: string) => {
   return n;
 };
 
-export function v1(store: Store) {
+export function v1(store: Device) {
   const r = Router();
   const create = idempotent(store);
 

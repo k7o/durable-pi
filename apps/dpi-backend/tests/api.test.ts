@@ -5,10 +5,10 @@ import type { JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
 import type { TodosDoc } from "../src/todos.js";
 import { DpiClient } from "../../dpi-sdk/src/client.js";
 import { DpiError } from "../../dpi-sdk/src/errors.js";
-import { bootServer, faux, newToken, tempStore, until } from "./helpers.js";
+import { bootServer, faux, newToken, tempDevice, until } from "./helpers.js";
 
 test("REST v1: auth, sessions, agents, messages, waits, idempotency, errors", async () => {
-  const t = await tempStore();
+  const t = await tempDevice();
   const token = newToken();
   const server = await bootServer({ home: join(t.root, "home"), startDirs: t.work, token, name: "api-box" });
   try {

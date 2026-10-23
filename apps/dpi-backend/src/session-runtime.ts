@@ -13,7 +13,7 @@ import { createAddons, type Addons } from "./addons.js";
 import type { Catalog, SessionRow } from "./catalog.js";
 import type { ChangeFeed } from "./changes.js";
 import type { Compaction } from "./compaction.js";
-import { ApiFault, notFound } from "./errors.js";
+import { ApiFault, invalid, notFound } from "./errors.js";
 import { createPlayground, Workspace, type SpawnSession } from "./extensions.js";
 import { createJobs, JobRuns, type Jobs } from "./jobs.js";
 import { lockFile } from "./locks.js";
@@ -43,6 +43,11 @@ export class SessionRuntime {
   readonly errors = new Map<string, string>();
 
   constructor(private readonly options: SessionRuntimeOptions) {}
+
+  /** Create the device's start folders before any session opens. */
+  async prepare() {
+    await Promise.all(this.options.startDirs.map((dir) => mkdir(dir, { recursive: true }).catch(() => {})));
+  }
 
   isOpen(sessionId: string): boolean {
     return this.opened.has(sessionId);
@@ -202,6 +207,18 @@ export class SessionRuntime {
   }
 
   // ------------------------------------------------------------ directories
+
+  /** Resolve a client-supplied cwd against the device's first start dir; it must exist. */
+  async resolveCwd(path: string): Promise<string> {
+    const expanded = path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
+    try {
+      const real = await realpath(resolve(this.options.startDirs[0] ?? homedir(), expanded));
+      if (!(await stat(real)).isDirectory()) throw Error();
+      return real;
+    } catch {
+      throw invalid(`cwd must be an existing folder on ${this.options.name}`);
+    }
+  }
 
   async directories() {
     const dirs: { name: string; path: string }[] = [];

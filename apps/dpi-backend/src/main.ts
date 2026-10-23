@@ -3,13 +3,13 @@ import express from "express";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { loadConfig } from "./config.js";
-import { Store } from "./store.js";
+import { Device } from "./device.js";
 import { bearerAuth } from "./auth.js";
 import { errorMiddleware } from "./errors.js";
 import { v1 } from "./routes.js";
 
 const config = loadConfig();
-const store = await Store.open({
+const store = await Device.open({
   dataDir: config.dataDir,
   startDirs: config.startDirs,
   name: config.name,
