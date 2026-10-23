@@ -1,19 +1,15 @@
 // The feature contract: what one feature contributes to the one playground extension. The assembler in
 // playground.ts collects features in a fixed order, because the order in which tools and sections are declared is
 // the prompt (PI-208): a new feature goes at the end, and a reorder is a prompt change, not a tidy-up.
-import type { AnyTask, DocDefinition, DocToken, JsonObject, PromptSection, ToolRegistration } from "@earendil-works/pi-durable";
-
-// TS-101's one allowed heterogeneous alias: a feature registry holds documents of different types and no precise
-// common supertype exists. Confined to this file; no signature or call site takes `any`.
-type AnyDoc = DocToken<JsonObject, DocDefinition<JsonObject>>;
+//
+// Documents are not part of this type. A feature still owns its document (`<feature>/doc.ts`), but the extension
+// does not register documents: documents.ts holds the one list of conversation documents, because it also seeds
+// and reads them, and a copy here would be a second list to keep in step.
+import type { AnyTask, ToolRegistration } from "@earendil-works/pi-durable";
 
 export type Feature = {
-  /** Documents this feature declares, for the kind registry and the conversation seeder. */
-  docs?: readonly AnyDoc[];
   /** Tools in the order the model is offered them. */
   tools?: readonly ToolRegistration[];
   /** Durable tasks the extension registers by name. */
   tasks?: readonly AnyTask[];
-  /** The prompt section this feature renders, prepended in assembly order. */
-  section?: PromptSection;
 };

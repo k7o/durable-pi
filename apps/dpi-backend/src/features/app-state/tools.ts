@@ -8,7 +8,6 @@ import type { SharedState } from "../../shared-state.js";
 import { writing } from "../../tool-policy.js";
 import type { Feature } from "../feature.js";
 import { Receipt } from "../receipt.js";
-import { Workspace } from "./doc.js";
 
 export function appState(shared: SharedState, sessionId: string): Feature {
   const readAppState = defineTool({
@@ -67,5 +66,5 @@ export function appState(shared: SharedState, sessionId: string): Feature {
     },
   });
 
-  return { docs: [Workspace], tools: [readAppState, writing(updateState)] };
+  return { tools: [readAppState, writing(updateState)] };
 }

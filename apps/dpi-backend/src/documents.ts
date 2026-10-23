@@ -6,7 +6,7 @@ import type { Conversation, ConversationId, Harness, Tx } from "@earendil-works/
 import type { AppState } from "../../dpi-sdk/src/app-state.js";
 import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
 import { notFound } from "./errors.js";
-import { Workspace } from "./features/app-state/doc.js";
+import { WORKSPACE_DOC, Workspace } from "./features/app-state/doc.js";
 import { JobRuns } from "./features/jobs/record.js";
 import { Todos, TODOS_DOC } from "./features/todos/doc.js";
 import type { SharedState } from "./shared-state.js";
@@ -27,7 +27,7 @@ type ConversationDoc = {
  * order and a client does not depend on it, so this list is the one place that decides it.
  */
 const CONVERSATION_DOCS: readonly ConversationDoc[] = [
-  { kind: "demo.workspace", empty: {}, seed: (tx, id) => tx.doc(Workspace, id), read: (h, id) => h.snapshot(Workspace, id, ctx) },
+  { kind: WORKSPACE_DOC, empty: {}, seed: (tx, id) => tx.doc(Workspace, id), read: (h, id) => h.snapshot(Workspace, id, ctx) },
   {
     kind: JOB_RUNS_DOC,
     empty: { counts: {}, items: {} },

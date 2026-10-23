@@ -3,8 +3,10 @@
 import { defineDoc } from "@earendil-works/pi-durable";
 import type { AppState } from "../../../../dpi-sdk/src/app-state.js";
 
+export const WORKSPACE_DOC = "demo.workspace";
+
 export const Workspace = defineDoc<AppState>({
-  kind: "demo.workspace",
+  kind: WORKSPACE_DOC,
   version: 1,
   scope: "conversation",
   history: "rewindable",

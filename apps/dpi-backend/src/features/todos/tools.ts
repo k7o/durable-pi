@@ -67,5 +67,5 @@ export const TodoTool = defineTool({
 });
 
 export function todos(): Feature {
-  return { docs: [Todos], tools: [writing(TodoTool)] };
+  return { tools: [writing(TodoTool)] };
 }

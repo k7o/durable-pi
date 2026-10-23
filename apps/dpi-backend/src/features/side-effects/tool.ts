@@ -47,5 +47,5 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
   });
 
 export function pager(): Feature {
-  return { docs: [Pager], tools: [writing(pingOnCall)] };
+  return { tools: [writing(pingOnCall)] };
 }

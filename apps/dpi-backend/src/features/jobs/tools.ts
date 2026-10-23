@@ -211,5 +211,5 @@ export function jobsTools(jobs: Jobs): Feature {
     },
   });
 
-  return { tools: [listJobs, writing(runJob), checkJob] };
+  return { tasks: jobs.tasks, tools: [listJobs, writing(runJob), checkJob] };
 }

@@ -250,3 +250,32 @@ Deferred, with reasons:
   name. They are contracts (DP-104) but not in slice 0's gate; slice 6 moves the kinds that are.
 - the audit's step 0 also asks for the `demo.todos`/`demo.job-runs` document responses. Both already
   have response tests in `tests/api.test.ts`, so a rename fails there.
+
+## Code review fixes, slices 2–6
+
+Two reviews ran on `b98875c..HEAD` (Standards against `CODING_STANDARDS.md` and the audit, Spec against
+this plan). Both axes found the same first issue. Addressed:
+
+- `Feature.docs` and `.section` were declared and never read: `docs` was filled by three features into a
+  field nothing consumed, and its comment promised a registry and seeder that read `documents.ts`'s own
+  list (TS-705). The type is now `{ tools, tasks }`; `tasks` is real (the assembler takes them from
+  `jobsTools`), and documents stay owned by each feature's `doc.ts` and listed once in `documents.ts`.
+- the workspace kind was a string literal in two places while its siblings used owned constants
+  (TS-104): `WORKSPACE_DOC` now sits beside `Workspace`.
+- `runtime.ts` still claimed to own one task per job, which `engine.ts` does now, and `defs.ts` claimed
+  to hold only the catalogue while also validating input (TS-704).
+
+Accepted, not fixed, with reasons:
+
+- **`features/jobs/` imports `features/todos/doc.js`** (`types.ts` for the `TodosDoc`/`TodoDigest` types,
+  `phase.ts` for the `Todos` token), which the acceptance criteria above rule out (TS-702). The cause is
+  `Phase.todos()`/`saveTodoDigest()`: the digest job has to read the list the `todo` tool edits. Q2
+  rejected putting the job under `features/todos/` for the same reason in reverse, so one direction of
+  the edge is unavoidable until the seam changes. The honest fix is to inject the todo reader and digest
+  writer through `JobsDeps` and keep `Phase` free of another feature's document; that is a change to the
+  phase contract, so it is recorded here rather than folded into a review fix. Until then Q2's rule
+  holds where it matters: no *job module* imports a sibling feature, and `defs.ts` does not.
+- `Playground` (in `demo.ts`) and `createPlayground` (in `playground.ts`) still share a name. The class
+  name is the store split's Q7; renaming it is that plan's decision, not this one's.
+- `pause` is one line duplicated in `features/jobs/tools.ts` and `features/side-effects/tool.ts`; a
+  third file to hold a `setTimeout` wrapper would cost more than it saves.

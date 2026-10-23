@@ -1,11 +1,9 @@
-// The phase runtime: one pi-durable task per job, whose checkpoint phases are the job's named phases, so the task
-// graph, the run record and the chat card all name the same phase. A phase does real work (shell commands in the
-// session's folder, a subagent with read and bash, App State writes), records every step in the conversation
-// document `demo.job-runs`, then commits the next checkpoint. A restart resumes the unfinished phase from its
-// checkpoint.
+// The phase runtime: how one phase of a run advances. A phase is a checkpoint, so a restart resumes it: on entry it
+// replaces the steps this iteration already recorded, then dispatches to the job's handler and commits the next
+// checkpoint (or the run's outcome). Approval phases are not handlers: they wait on their own task.
 //
-// A phase is a checkpoint. A step is one recorded action inside it: command, note, state, agent or checkpoint.
-// The Phase object a handler receives is built in phase.ts; the run record it writes is in record.ts.
+// A step is one recorded action inside a phase: command, note, state, agent or checkpoint. The Phase object a
+// handler receives is built in phase.ts; the run record it writes is in record.ts; the tasks are in engine.ts.
 import type { Context } from "@earendil-works/chord";
 import type { TaskId } from "@earendil-works/pi-durable";
 import type { JobDef, JobRun, JobStep } from "../../../../dpi-sdk/src/jobs.js";

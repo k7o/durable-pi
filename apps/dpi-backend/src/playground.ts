@@ -26,7 +26,7 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
   const assembled = features(shared, sessionId, spawn, jobs);
   return defineExtension({
     name: "playground",
-    tasks: jobs.tasks,
+    tasks: assembled.flatMap((feature) => feature.tasks ?? []),
     tools: assembled.flatMap((feature) => feature.tools ?? []),
     sections: [section("playground", () => PLAYGROUND_SECTION, { tag: false })],
   });
