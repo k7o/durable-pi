@@ -55,9 +55,10 @@ import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { createPlayground, Workspace, type SpawnSession } from "./extensions.js";
 import { createJobs, JobRuns, JOB_DEFS, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
-import { Todos, TODOS_DOC } from "./todos.js";
+import { Todos } from "./todos.js";
 import { ADDON_INFO, createAddons, PROMPTS, PromptChecklist, type Addons } from "./addons.js";
-import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
+import { Documents } from "./documents.js";
+export { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "./documents.js";
 import { writes, withWrites, CODING_WRITES } from "./tool-policy.js";
 
 export const DURABLE_VERSION = "1.0.3";
@@ -76,9 +77,6 @@ export interface StoreOptions {
 /** Agent documents a client may read or stream, by kind. */
 /** apps/dpi-backend/src → the checkout root. */
 const CODE_DIR = resolve(import.meta.dirname, "../../..");
-const AGENT_DOCS = { [JOB_RUNS_DOC]: JobRuns, [TODOS_DOC]: Todos, "demo.workspace": Workspace } as const;
-export const AGENT_DOC_KINDS = Object.keys(AGENT_DOCS);
-export const DEVICE_DOC_KINDS = ["app.shared-state"];
 
 type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void; jobs: Jobs; addons: Addons };
 type Resolved = { row: SessionRow; h: Harness; c: Conversation };
@@ -100,6 +98,7 @@ export class Store {
   readonly startedAt = Date.now();
   readonly uid: string;
   shared!: SharedState;
+  documents!: Documents;
   private unlockShared?: () => void;
   /** Task labels never change once known: tool names of pi.tool tasks, job titles of job runs. */
   private taskLabels = new Map<string, { label?: string; callId?: string }>();
@@ -145,6 +144,7 @@ export class Store {
     try {
       store.unlockShared = lockFile(`${store.sharedStatePath}.lock`);
       store.shared = await SharedState.open(store.sharedStatePath);
+      store.documents = new Documents(store.shared);
       store.shared.harness.subscribeCommits(() => store.notify());
       for (const row of store.list()) {
         try {
@@ -769,17 +769,11 @@ export class Store {
   }
 
   async agentDoc(h: Harness, c: Conversation, kind: string) {
-    const token = AGENT_DOCS[kind as keyof typeof AGENT_DOCS];
-    if (!token) throw notFound(`Unknown agent document ${kind}. Known: ${AGENT_DOC_KINDS.join(", ")}`);
-    const value = await h.snapshot(token as typeof JobRuns, c.id, ctx);
-    const empty = kind === JOB_RUNS_DOC ? { counts: {}, items: {} } : kind === TODOS_DOC ? { items: [] } : {};
-    return JSON.parse(JSON.stringify(value ?? empty)) as unknown;
+    return this.documents.agentDoc(h, c, kind);
   }
 
   async deviceDoc(kind: string) {
-    if (kind !== "app.shared-state") throw notFound(`Unknown device document ${kind}`);
-    const { value, revision } = await this.shared.snapshot();
-    return { value, revision };
+    return this.documents.deviceDoc(kind);
   }
 
   async usage(h: Harness): Promise<UsageTotals> {
@@ -832,10 +826,6 @@ export class Store {
   }
 
   // ------------------------------------------------------------ compaction settings (per session)
-
-  private windowOf(modelId: string) {
-    return this.models.windowOf(modelId);
-  }
 
   /** Saved thresholds, or the defaults for the session model's window (200k background, 250k wait when it fits). */
   compactionOf(sessionId: string): CompactionSettings {
