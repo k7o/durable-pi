@@ -49,3 +49,16 @@ test("lock: releasing only removes a lock the caller still owns", async () => {
     await t.cleanup();
   }
 });
+
+test("lock: a second lock in the same process is refused", async () => {
+  const t = await tempLock();
+  try {
+    const release = lockFile(t.path);
+    assert.throws(() => lockFile(t.path), /Database already owned by this process/);
+    release();
+    const again = lockFile(t.path);
+    again();
+  } finally {
+    await t.cleanup();
+  }
+});

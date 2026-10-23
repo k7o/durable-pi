@@ -10,7 +10,11 @@ in `/tmp/arch-review/store-callgraph.md`.
 | Slice | State | Evidence |
 |---|---|---|
 | 1 · Locks + change feed | done | `src/locks.ts`, `src/changes.ts`; `tests/locks.test.ts`, `tests/changes.test.ts`; `npm run check` clean; 16/16 tests pass; `process.kill` no longer in `store.ts`; −33/+6 lines in `store.ts` |
-| 2 · Catalog | next | — |
+| 2 · Catalog | done | `src/catalog.ts` (`deviceUid`, 14 intent methods, schema + 24h GC, own lock); `tests/catalog.test.ts` (9 tests: uid, rows, resolve, names, model, compaction, replay, spawns, lock, GC); `store.ts` 1,171 → 1,103; `DatabaseSync`/`.prepare(` gone from `store.ts`; routes/streams unchanged; 26/26 tests pass. **Measured −68 lines, not ≥150:** the schema/constructor were smaller than estimated and delegates re-add lines. Guardrail restated: SQL-free + catalog contract tests, not a line count. |
+| 3 · Tool policy | done | `src/tool-policy.ts`; `writing`/`withWrites` mark tools at their definition; `WRITE_TOOLS` deleted; `todo` was missing from the old set and is now correctly a write (readOnly removes 9, not 8); `tests/tool-policy.test.ts` (4 tests); `store.test.ts` read-only asserts a literal list; `API.md` corrected; 30/30 tests pass |
+| 4 · Models | next | — |
+
+Note: slices 1–3 are on one branch, `refactor/store-split`, with one commit per slice where the files allowed it (2 and 3 share `store.ts`, so they will be one commit).
 
 ## Goal
 

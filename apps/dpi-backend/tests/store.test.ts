@@ -239,8 +239,12 @@ test("read only: the agent is offered only tools that read; turning it off resto
     const detail = await store.agentDetail(row, c);
     assert.equal(detail.config.readOnly, true);
     assert.deepEqual(
-      detail.tools.filter((x) => !x.offered).map((x) => x.name).sort(),
       detail.tools.filter((x) => x.writes).map((x) => x.name).sort(),
+      ["bash", "edit", "ping_on_call_engineer", "run_durable_job", "start_session", "subagent", "todo", "update_state", "write"],
+    );
+    assert.deepEqual(
+      detail.tools.filter((x) => !x.offered).map((x) => x.name).sort(),
+      ["bash", "edit", "ping_on_call_engineer", "run_durable_job", "start_session", "subagent", "todo", "update_state", "write"],
     );
     assert.ok((await offered()).includes("read") && (await offered()).includes("search_history"));
     const submission = await store.send(c, { content: "!rm -rf kept", requestId: "ro-1" });

@@ -20,6 +20,7 @@ import type { Context } from "@earendil-works/chord";
 import { JobRuns, jobDef, resolveJobInput, type Jobs } from "./jobs.js";
 import { searchHistory } from "./history.js";
 import { Todos } from "./todos.js";
+import { writing } from "./tool-policy.js";
 
 export const Workspace = defineDoc<AppState>({
   kind: "demo.workspace",
@@ -557,15 +558,15 @@ export function createPlayground(shared: SharedState, sessionId: string, spawn: 
     tasks: jobs.tasks,
     tools: [
       readAppState,
-      updateState,
-      TodoTool,
+      writing(updateState),
+      writing(TodoTool),
       listJobs,
-      runJob,
+      writing(runJob),
       checkJob,
       searchHistoryTool,
-      pingOnCall,
-      subagent,
-      startSession,
+      writing(pingOnCall),
+      writing(subagent),
+      writing(startSession),
       handoff,
     ],
     sections: [

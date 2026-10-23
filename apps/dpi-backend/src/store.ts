@@ -32,9 +32,8 @@ import { lastAssistantText, messageText, toMarkdown, toTranscript } from "../../
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { lockFile } from "./locks.js";
 import { ChangeFeed } from "./changes.js";
-import { DatabaseSync } from "node:sqlite";
+import { Catalog, type SessionRow } from "./catalog.js";
 import { mkdir, readdir, realpath, rename as renamePath, stat } from "node:fs/promises";
-import { mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { homedir, hostname, platform } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -64,30 +63,11 @@ import { createJobs, JobRuns, JOB_DEFS, jobDef, resolveJobInput, type Jobs } fro
 import { Todos, TODOS_DOC } from "./todos.js";
 import { ADDON_INFO, createAddons, PROMPTS, PromptChecklist, type Addons } from "./addons.js";
 import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
+import { writes, withWrites, CODING_WRITES } from "./tool-policy.js";
 
 export const DURABLE_VERSION = "1.0.3";
 
-/** Tools that create, update or delete: shell, files, App State, job runs, sessions, pages and subagents. */
-export const WRITE_TOOLS = new Set([
-  "bash",
-  "write",
-  "edit",
-  "update_state",
-  "run_durable_job",
-  "ping_on_call_engineer",
-  "subagent",
-  "start_session",
-]);
-
-export type SessionRow = {
-  id: string;
-  name: string;
-  cwd: string;
-  dbPath: string;
-  createdAt: number;
-  model: string;
-  provider: string;
-};
+export type { SessionRow };
 
 export interface StoreOptions {
   dataDir: string;
@@ -123,14 +103,11 @@ export class Store {
   readonly models = createModels();
   readonly opened = new Map<string, Opened>();
   readonly errors = new Map<string, string>();
-  readonly catalog: DatabaseSync;
   readonly startedAt = Date.now();
+  readonly uid: string;
   shared!: SharedState;
-  uid!: string;
   modelList: ModelInfo[] = [];
-  private unlockCatalog: () => void;
   private unlockShared?: () => void;
-  readonly changes = new ChangeFeed();
   /** Saved thresholds per session; null when the session uses the defaults for its model. */
   private compactions = new Map<string, Partial<CompactionSettings> | null>();
   /** Task labels never change once known: tool names of pi.tool tasks, job titles of job runs. */
@@ -155,7 +132,12 @@ export class Store {
     return this.options.startDirs;
   }
 
-  private constructor(readonly options: StoreOptions) {
+  private constructor(
+    readonly options: StoreOptions,
+    readonly catalog: Catalog,
+    readonly changes: ChangeFeed,
+  ) {
+    this.uid = catalog.deviceUid;
     if (options.provider === "faux") installFaux(this.models);
     else {
       const provider = providerFor(options.provider);
@@ -170,28 +152,15 @@ export class Store {
           : provider,
       );
     }
-    mkdirSync(options.dataDir, { recursive: true, mode: 0o700 });
-    this.unlockCatalog = lockFile(`${this.catalogPath}.lock`);
-    this.catalog = new DatabaseSync(this.catalogPath);
-    this.catalog.exec(`PRAGMA journal_mode=WAL;
-      CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,name TEXT NOT NULL,cwd TEXT NOT NULL,dbPath TEXT NOT NULL UNIQUE,createdAt INTEGER NOT NULL,model TEXT NOT NULL,provider TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS conversation_names(sessionId TEXT NOT NULL,conversationId INTEGER NOT NULL,name TEXT NOT NULL,PRIMARY KEY(sessionId,conversationId));
-      CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS requests(key TEXT PRIMARY KEY,route TEXT NOT NULL,status INTEGER NOT NULL,body TEXT NOT NULL,createdAt INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS session_spawns(key TEXT PRIMARY KEY,sessionId TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS session_compaction(sessionId TEXT PRIMARY KEY,settings TEXT NOT NULL);`);
-    const uid = this.catalog.prepare("SELECT value FROM meta WHERE key='device_uid'").get() as
-      | { value: string }
-      | undefined;
-    this.uid = uid?.value ?? randomUUID();
-    if (!uid) this.catalog.prepare("INSERT INTO meta(key,value) VALUES('device_uid',?)").run(this.uid);
-    this.catalog.prepare("DELETE FROM requests WHERE createdAt < ?").run(Date.now() - 24 * 3600_000);
   }
 
   static async open(options: StoreOptions) {
-    const store = new Store({ ...options, dataDir: resolve(options.dataDir) });
+    const resolved = { ...options, dataDir: resolve(options.dataDir) };
     // Start dirs are where new sessions begin; create any that do not exist yet.
-    await Promise.all(options.startDirs.map((dir) => mkdir(dir, { recursive: true }).catch(() => {})));
+    await Promise.all(resolved.startDirs.map((dir) => mkdir(dir, { recursive: true }).catch(() => {})));
+    const changes = new ChangeFeed();
+    const catalog = await Catalog.open(resolved.dataDir, changes);
+    const store = new Store(resolved, catalog, changes);
     try {
       store.unlockShared = lockFile(`${store.sharedStatePath}.lock`);
       store.shared = await SharedState.open(store.sharedStatePath);
@@ -341,26 +310,23 @@ export class Store {
   // ------------------------------------------------------------ sessions
 
   list(): SessionRow[] {
-    return this.catalog.prepare("SELECT * FROM sessions ORDER BY createdAt DESC").all() as SessionRow[];
+    return this.catalog.listSessions();
   }
 
   row(id: string): SessionRow {
-    const row = this.catalog.prepare("SELECT * FROM sessions WHERE id=?").get(id) as SessionRow | undefined;
+    const row = this.catalog.getSession(id);
     if (!row) throw notFound(`No session ${id}`);
     return row;
   }
 
   /** A session by UUID or unique case-insensitive name. */
   resolveSession(ref: string): SessionRow {
-    const byId = this.catalog.prepare("SELECT * FROM sessions WHERE id=?").get(ref) as SessionRow | undefined;
-    if (byId) return byId;
-    const matches = this.catalog
-      .prepare("SELECT * FROM sessions WHERE lower(name)=lower(?)")
-      .all(ref) as SessionRow[];
-    if (matches.length === 1) return matches[0];
-    if (matches.length > 1)
-      throw new ApiFault("ambiguous", `${matches.length} sessions are named "${ref}"; use the session id`);
-    throw notFound(`No session "${ref}" on ${this.name}`);
+    try {
+      return this.catalog.resolveSession(ref);
+    } catch (e) {
+      if (e instanceof ApiFault && e.code === "not_found") throw notFound(`No session "${ref}" on ${this.name}`);
+      throw e;
+    }
   }
 
   harness(row: SessionRow) {
@@ -396,18 +362,7 @@ export class Store {
       provider: model.provider,
     };
     await this.openAgent(row, true, body.thinkingLevel ?? "low");
-    this.catalog.exec("BEGIN");
-    try {
-      this.catalog
-        .prepare("INSERT INTO sessions VALUES(?,?,?,?,?,?,?)")
-        .run(id, row.name, cwd, row.dbPath, row.createdAt, row.model, row.provider);
-      if (spawnKey) this.catalog.prepare("INSERT OR REPLACE INTO session_spawns VALUES(?,?)").run(spawnKey, id);
-      this.catalog.exec("COMMIT");
-    } catch (e) {
-      this.catalog.exec("ROLLBACK");
-      throw e;
-    }
-    this.notify();
+    this.catalog.insertSession(row, spawnKey);
     return this.sessionSummary(row);
   }
 
@@ -416,10 +371,8 @@ export class Store {
    * prompt reuses its requestId, so a crash never starts a second session or sends the prompt twice.
    */
   spawnSession: SpawnSession = async (input) => {
-    const found = this.catalog.prepare("SELECT sessionId FROM session_spawns WHERE key=?").get(input.key) as
-      | { sessionId: string }
-      | undefined;
-    const existing = found && this.list().find((r) => r.id === found.sessionId);
+    const found = this.catalog.spawnOwner(input.key);
+    const existing = found && this.list().find((r) => r.id === found);
     const session = existing
       ? await this.sessionSummary(existing)
       : await this.create(
@@ -434,8 +387,7 @@ export class Store {
 
   rename(row: SessionRow, name: unknown) {
     if (typeof name !== "string" || !name.trim()) throw invalid("A name is required");
-    this.catalog.prepare("UPDATE sessions SET name=? WHERE id=?").run(name.trim().slice(0, 100), row.id);
-    this.notify();
+    this.catalog.renameSession(row.id, name.trim().slice(0, 100));
     return this.sessionSummary(this.row(row.id));
   }
 
@@ -462,10 +414,8 @@ export class Store {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     }
-    this.catalog.prepare("DELETE FROM conversation_names WHERE sessionId=?").run(row.id);
-    this.catalog.prepare("DELETE FROM sessions WHERE id=?").run(row.id);
+    this.catalog.forgetSession(row.id);
     this.errors.delete(row.id);
-    this.notify();
     return { archived: target };
   }
 
@@ -482,7 +432,7 @@ export class Store {
         ),
       );
       const registry = createRegistry();
-      registry.install(CodingTools);
+      registry.install(withWrites(CodingTools, CODING_WRITES));
       const jobs = createJobs({ shared: this.shared, sessionId: row.id });
       const compaction = () => this.compactionOf(row.id);
       const playground = createPlayground(this.shared, row.id, this.spawnSession, jobs);
@@ -531,7 +481,7 @@ export class Store {
       const rootModel = (await (await harness.root(ctx)).agent(ctx)).model!;
       row.provider = rootModel.provider;
       row.model = rootModel.modelId;
-      this.catalog.prepare("UPDATE sessions SET provider=?,model=? WHERE id=?").run(row.provider, row.model, row.id);
+      this.catalog.setSessionModel(row.id, { provider: row.provider, modelId: row.model });
       const unsubscribe = harness.subscribeCommits(() => this.notify());
       this.opened.set(row.id, { harness, unlock, unsubscribe, jobs, addons });
       this.errors.delete(row.id);
@@ -558,13 +508,7 @@ export class Store {
   // ------------------------------------------------------------ agents
 
   private names(sessionId: string) {
-    return new Map(
-      (
-        this.catalog
-          .prepare("SELECT conversationId,name FROM conversation_names WHERE sessionId=?")
-          .all(sessionId) as { conversationId: number; name: string }[]
-      ).map((r) => [r.conversationId, r.name]),
-    );
+    return this.catalog.agentNames(sessionId);
   }
 
   private agentRef(record: ConversationRecord, names: Map<number, string>): AgentRef {
@@ -674,7 +618,7 @@ export class Store {
 
   async agentDetail(row: SessionRow, c: Conversation): Promise<AgentDetail> {
     const { agent, all, offered } = await this.toolsOf(c);
-    const writers = all.filter((t) => WRITE_TOOLS.has(t.name));
+    const writers = all.filter(writes);
     return {
       ...(await this.agentSummary(row, c)),
       sessionId: row.id,
@@ -690,7 +634,7 @@ export class Store {
         description: t.description,
         replay: (t.replay ?? "unsafe") as "safe" | "unsafe",
         parameters: JSON.parse(JSON.stringify(t.parameters ?? {})),
-        writes: WRITE_TOOLS.has(t.name),
+        writes: writes(t),
         offered: offered.has(t.name),
       })),
       extensions: agent.extensions.map((e) => e.name),
@@ -702,12 +646,7 @@ export class Store {
     const clean = name.trim().slice(0, 100);
     if (/^\d+$/.test(clean) || clean.toLowerCase() === "main" && agentId !== 1)
       throw invalid("Agent names cannot be numbers or 'main'");
-    this.catalog
-      .prepare(
-        "INSERT INTO conversation_names VALUES(?,?,?) ON CONFLICT(sessionId,conversationId) DO UPDATE SET name=excluded.name",
-      )
-      .run(row.id, agentId, clean);
-    this.notify();
+    this.catalog.setAgentName(row.id, agentId, clean);
   }
 
   async createAgent(row: SessionRow, body: { from?: unknown; name?: unknown }) {
@@ -758,7 +697,7 @@ export class Store {
     // Read only filters the agent's tools: the model is never offered the ones that create, update or delete.
     const tools =
       body.readOnly === true
-        ? { tools: { remove: (await this.toolsOf(c)).all.filter((t) => WRITE_TOOLS.has(t.name)) } }
+        ? { tools: { remove: (await this.toolsOf(c)).all.filter(writes) } }
         : body.readOnly === false
           ? { tools: null }
           : {};
@@ -772,8 +711,7 @@ export class Store {
       },
       ctx,
     );
-    if (model && (c.id as number) === 1)
-      this.catalog.prepare("UPDATE sessions SET model=?,provider=? WHERE id=?").run(model.modelId, model.provider, row.id);
+    if (model && (c.id as number) === 1) this.catalog.setSessionModel(row.id, model);
     // Thresholds are shared by the session's agents; refit them when this model's window is too small for them.
     const window = model ? this.windowOf(model.modelId) : 0;
     if (window && !compactionFits(window, this.compactionOf(row.id))) {
@@ -977,16 +915,10 @@ export class Store {
 
   /** Saved thresholds, or the defaults for the session model's window (200k background, 250k wait when it fits). */
   compactionOf(sessionId: string): CompactionSettings {
-    if (!this.compactions.has(sessionId)) {
-      const row = this.catalog.prepare("SELECT settings FROM session_compaction WHERE sessionId=?").get(sessionId) as
-        | { settings: string }
-        | undefined;
-      this.compactions.set(sessionId, row ? (JSON.parse(row.settings) as Partial<CompactionSettings>) : null);
-    }
+    if (!this.compactions.has(sessionId)) this.compactions.set(sessionId, this.catalog.compactionSettings(sessionId));
     const saved = this.compactions.get(sessionId);
     if (saved) return { ...DEFAULT_COMPACTION, ...saved };
-    const session = this.catalog.prepare("SELECT model FROM sessions WHERE id=?").get(sessionId) as { model: string } | undefined;
-    return defaultCompaction(this.windowOf(session?.model ?? ""));
+    return defaultCompaction(this.windowOf(this.catalog.getSession(sessionId)?.model ?? ""));
   }
 
   /** Validate and store new thresholds; pi-durable reads them at its next use, so they apply from the next request. */
@@ -1005,11 +937,8 @@ export class Store {
     int("reserveTokens", 1024, 1_000_000);
     int("backgroundTokens", 0, 1_000_000);
     int("keepRecentTokens", 500, 200_000);
-    this.catalog
-      .prepare("INSERT INTO session_compaction VALUES(?,?) ON CONFLICT(sessionId) DO UPDATE SET settings=excluded.settings")
-      .run(row.id, JSON.stringify(next));
+    this.catalog.setCompactionSettings(row.id, next);
     this.compactions.set(row.id, next);
-    this.notify();
     return { ...next };
   }
 
@@ -1135,18 +1064,11 @@ export class Store {
   // ------------------------------------------------------------ idempotency
 
   replay(key: string, route: string) {
-    const row = this.catalog.prepare("SELECT * FROM requests WHERE key=?").get(key) as
-      | { route: string; status: number; body: string }
-      | undefined;
-    if (!row) return undefined;
-    if (row.route !== route) throw invalid("Idempotency-Key was already used for a different request");
-    return { status: row.status, body: JSON.parse(row.body) as unknown };
+    return this.catalog.replay(key, route);
   }
 
   remember(key: string, route: string, status: number, body: unknown) {
-    this.catalog
-      .prepare("INSERT OR IGNORE INTO requests VALUES(?,?,?,?,?)")
-      .run(key, route, status, JSON.stringify(body), Date.now());
+    this.catalog.remember(key, route, status, body);
   }
 
   // ------------------------------------------------------------ lifecycle
@@ -1163,8 +1085,7 @@ export class Store {
     this.opened.clear();
     await this.shared?.close();
     this.unlockShared?.();
-    this.catalog.close();
-    this.unlockCatalog();
+    await this.catalog.close();
   }
 }
 

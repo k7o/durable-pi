@@ -3,8 +3,12 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
+/** Locks held by this process, so a second acquisition cannot silently take over its own file. */
+const held = new Set<string>();
+
 /** Take the lock at `path` and return its release function. Throws when a live process owns it. */
 export function lockFile(path: string): () => void {
+  if (held.has(path)) throw Error(`Database already owned by this process: ${path}`);
   mkdirSync(dirname(path), { recursive: true });
   const take = () => writeFileSync(path, String(process.pid), { flag: "wx", mode: 0o600 });
   try {
@@ -23,7 +27,9 @@ export function lockFile(path: string): () => void {
     unlinkSync(path);
     take();
   }
+  held.add(path);
   return () => {
+    if (!held.delete(path)) return;
     try {
       if (readFileSync(path, "utf8") === String(process.pid)) unlinkSync(path);
     } catch {}
