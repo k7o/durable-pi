@@ -12,13 +12,16 @@ collapse are both in. Implement in slices, one commit each.
 
 | Slice | State | Evidence |
 |---|---|---|
-| 0 · Contract snapshot | done | `tests/contracts.test.ts` (3 tests): the 11 tool names in order, `JOB_DEFS` ids and each job's phase ids in order, `AGENT_DOC_KINDS`/`DEVICE_DOC_KINDS`; swapping two tools in `extensions.ts` fails it; no production change; `npm run check` clean, 52/52 tests pass |
-| 1 · Prompt text out | done | `src/prompt.ts`: `PLAYGROUND_SECTION` (1,764 chars of text; the audit's 1,777 counted the indented source line) and `TOOL_DESCRIPTIONS` for all 11 tools in offered order; `extensions.ts` 581 → 571 lines; every description and the section are byte-identical to the literals they replaced; contract test unchanged; `npm run check` clean, 52/52 tests pass |
+| 0 · Contract snapshot | done | `tests/contracts.test.ts` (4 tests): the 11 tool names in order, `JOB_DEFS` ids and each job's phase ids in order, `AGENT_DOC_KINDS`/`DEVICE_DOC_KINDS`, and the prompt table's keys in offered order (third commit); swapping two tools in `extensions.ts` fails it; no production change; `npm run check` clean, 53/53 tests pass |
+| 1 · Prompt text out | done | `src/prompt.ts`: `PLAYGROUND_SECTION` (1,764 chars of text; the audit's 1,777 counted the indented source line) and `TOOL_DESCRIPTIONS` for all 11 tools in offered order; `extensions.ts` 581 → 571 lines; every description and the section are byte-identical to the literals they replaced; the contract test needed no change; `npm run check` clean, 53/53 tests pass |
 | 2 · Feature contract | todo | `features/feature.ts`, `features/jobs/types.ts`; types only, no moves |
 | 3 · Jobs by job | todo | `features/jobs/{workspace-snapshot,release-check,change-watch,todo-digest,approval}.ts`, `defs.ts`; `jobs.ts` is a re-export shim |
 | 4 · Phase runtime | todo | `features/jobs/runtime.ts`; `jobs.ts` deleted |
 | 5 · Tools by feature | todo | `features/{app-state,todos,history,sessions,jobs,side-effects}/`; `playground.ts` assembles |
 | 6 · Retire the hubs | todo | `extensions.ts` deleted; README and `docs/agents` point at the new paths |
+
+Note: slices 0 and 1 are on `refactor/feature-split`, one commit each. Slices 2–6 are not started and no source file has
+moved except the new `src/prompt.ts`. See [Code review fixes](#code-review-fixes) for the third commit.
 
 ## Goal
 
@@ -195,3 +198,28 @@ and seeded in another.
 
 Nothing blocking. Slice order is 0 → 6, one commit each, shims kept in 3 and 5. The first run lands
 slices 0 and 1 and stops for review before any file moves.
+
+## Code review fixes
+
+Two reviews ran on `b309916..HEAD` after slices 0 and 1 (Standards against `CODING_STANDARDS.md` and
+`ai_docs/durable_pi/maintainability-audit.md`, Spec against this plan). Addressed in the third commit:
+
+- the prompt table was unguarded: `contracts.test.ts` now asserts `Object.keys(TOOL_DESCRIPTIONS)`
+  against the offered tool names, so a stale key or a reordered entry fails the suite. Both axes
+  found this; it is what makes the "in the order `createPlayground` offers the tools" comment true
+  (Q5, PI-208).
+- `TOOL_DESCRIPTIONS` is `as const`, like the other literal tables (TS-105), and `prompt.ts` says
+  what it owns: tool-level descriptions, with argument descriptions left beside their schemas
+  (TS-704).
+- the contract fixture assembles the extension once behind a throwing-stub helper, and the stub
+  covers `shared` too, so its comment no longer claims more than it proves.
+- the document-kind assertion compares sorted sets. Key order is not a contract and Q7 seeds
+  conversations `Workspace`, `JobRuns`, `Todos`, so pinning the registry's key order would only
+  fight the one seeding list slice 6 creates.
+
+Deferred, with reasons:
+
+- `demo.receipt`, `demo.pager`, `demo.todo-receipt` and `ext.system-prompts` are still unguarded by
+  name. They are contracts (DP-104) but not in slice 0's gate; slice 6 moves the kinds that are.
+- the audit's step 0 also asks for the `demo.todos`/`demo.job-runs` document responses. Both already
+  have response tests in `tests/api.test.ts`, so a rename fails there.

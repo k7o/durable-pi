@@ -1,8 +1,12 @@
-// The playground's prompt text: the section that orients the agent and the description of every tool it is
-// offered. Descriptions and their order are prompt (PI-208), so they live here rather than beside the code that
-// declares each tool, and a wording change is a behavior change, not a tidy-up.
+// The playground's prompt text: the section that orients the agent and the tool-level description of every tool it
+// is offered. Descriptions and their order are prompt (PI-208), so they live here rather than beside the code that
+// declares each tool, and a wording change is a behavior change, not a tidy-up. Argument descriptions stay with
+// their `Type.Object` schema in extensions.ts, next to the parameters they constrain.
 
-/** Tool descriptions by tool name, in the order `createPlayground` offers the tools. */
+/**
+ * Tool descriptions by tool name, in the order `createPlayground` offers the tools. The contract test asserts that
+ * order against the offered tools, so a stale or reordered key fails the suite instead of the prompt.
+ */
 export const TOOL_DESCRIPTIONS = {
   read_state:
     "Read the shared App State object used by every session, conversation and fork, or a field at a JSON Pointer path. Empty path reads the whole object.",
@@ -26,7 +30,7 @@ export const TOOL_DESCRIPTIONS = {
     "Start a new session on this device: its own harness, database and working directory, independent of this one. It keeps running if you are interrupted. Returns immediately; you do not wait for it.",
   handoff:
     "Start a fresh model context with a concise handoff note. Old transcript stays stored.",
-};
+} as const;
 
 /** The one system prompt section the playground contributes, rendered before every request. */
 export const PLAYGROUND_SECTION =

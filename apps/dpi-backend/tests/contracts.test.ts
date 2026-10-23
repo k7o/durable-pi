@@ -6,23 +6,29 @@ import assert from "node:assert/strict";
 import { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "../src/documents.js";
 import { createPlayground, type SpawnSession } from "../src/extensions.js";
 import { JOB_DEFS, type Jobs } from "../src/jobs.js";
+import { TOOL_DESCRIPTIONS } from "../src/prompt.js";
 import type { SharedState } from "../src/shared-state.js";
 
-test("contracts: the extension offers the same tools in the same order", () => {
-  // Assembly only reads `jobs.tasks`; every other argument is reached from inside execute(), so the snapshot needs
-  // no database, no session and no store. Throwing stubs make that assumption fail loudly if it ever changes.
+/**
+ * The assembled extension, with every argument that assembly is not allowed to touch replaced by a throwing stub.
+ * Only `jobs.tasks` is read while assembling; the rest is reached from inside `execute()`. If a later change reads
+ * one of these at assembly time, the stub fails the test instead of hiding behind a plausible-looking value.
+ */
+function playground() {
   const refuse = () => {
     throw Error("contract snapshot: this argument is not exercised by assembly");
   };
-  const extension = createPlayground(
-    {} as unknown as SharedState,
+  return createPlayground(
+    refuse as unknown as SharedState,
     "contract-session",
     refuse as unknown as SpawnSession,
     { defs: JOB_DEFS, tasks: [], start: refuse } as unknown as Jobs,
   );
+}
 
+test("contracts: the extension offers the same tools in the same order", () => {
   assert.deepEqual(
-    extension.tools?.map((tool) => tool.name),
+    playground().tools?.map((tool) => tool.name),
     [
       "read_state",
       "update_state",
@@ -37,6 +43,12 @@ test("contracts: the extension offers the same tools in the same order", () => {
       "handoff",
     ],
   );
+});
+
+test("contracts: the prompt text is keyed by tool name, in the offered order", () => {
+  // The descriptions are prompt (PI-208), so a stale key or a reordered entry is a behavior change. Comparing the
+  // keys with the offered names ties the prompt table to the tool list without a third hand-kept copy of either.
+  assert.deepEqual(Object.keys(TOOL_DESCRIPTIONS), playground().tools?.map((tool) => tool.name));
 });
 
 test("contracts: job ids and their phase ids in order", () => {
@@ -56,6 +68,9 @@ test("contracts: job ids and their phase ids in order", () => {
 });
 
 test("contracts: document kinds", () => {
-  assert.deepEqual(AGENT_DOC_KINDS, ["demo.job-runs", "demo.todos", "demo.workspace"]);
-  assert.deepEqual(DEVICE_DOC_KINDS, ["app.shared-state"]);
+  // Kinds are a rename contract, not an order contract: the agent kinds are the keys of one registry and the plan
+  // seeds conversations in a different order (Workspace, JobRuns, Todos), so pinning the key order here would only
+  // fight the seeding list that slice 6 collapses.
+  assert.deepEqual([...AGENT_DOC_KINDS].sort(), ["demo.job-runs", "demo.todos", "demo.workspace"]);
+  assert.deepEqual([...DEVICE_DOC_KINDS].sort(), ["app.shared-state"]);
 });
