@@ -1,5 +1,4 @@
 import { SharedState } from "./shared-state.js";
-import type { StateChange } from "../../dpi-sdk/src/app-state.js";
 import type {
   AgentDetail,
   AgentExtensions,
@@ -44,12 +43,13 @@ import {
 } from "@earendil-works/pi-durable";
 import { type SpawnSession } from "./extensions.js";
 import type { Resolved } from "./agents.js";
-import { JobRuns, JOB_DEFS, jobDef, resolveJobInput } from "./jobs.js";
+import { JOB_DEFS } from "./jobs.js";
 import { ADDON_INFO, PROMPTS, PromptChecklist } from "./addons.js";
 import { Documents } from "./documents.js";
 import { SessionRuntime } from "./session-runtime.js";
 import { Conversations } from "./conversations.js";
 import { Agents } from "./agents.js";
+import { Playground } from "./playground.js";
 export type { Resolved } from "./agents.js";
 export { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "./documents.js";
 
@@ -79,6 +79,7 @@ export class Store {
   sessions!: SessionRuntime;
   agentView!: Agents;
   readonly conversations = new Conversations();
+  playground!: Playground;
   private unlockShared?: () => void;
 
   get catalogPath() {
@@ -123,6 +124,7 @@ export class Store {
       store.unlockShared = lockFile(`${store.sharedStatePath}.lock`);
       store.shared = await SharedState.open(store.sharedStatePath);
       store.documents = new Documents(store.shared);
+      store.playground = new Playground(store.shared, store.documents);
       store.sessions = new SessionRuntime({
         catalog,
         models,
@@ -510,60 +512,17 @@ export class Store {
   // ------------------------------------------------------------ demo extension
 
   async demoState(c: Conversation, body: Record<string, unknown>) {
-    let change = body as unknown as StateChange;
-    if (body.operation === undefined) {
-      const { value } = await this.shared.snapshot();
-      if (typeof body.goal === "string")
-        change = { operation: Object.hasOwn(value, "goal") ? "update" : "create", path: "/goal", value: body.goal };
-      else if (body.increment === true) change = { operation: "increment", path: "/counter", value: 1 };
-      else if (typeof body.note === "string") change = { operation: "create", path: "/notes/-", value: body.note };
-      else throw invalid("A state operation is required");
-    }
-    await this.shared.change(
-      change,
-      undefined,
-      typeof body.expectedRevision === "number" ? body.expectedRevision : undefined,
-    );
-    await c.commit(
-      (tx) =>
-        tx.appendEntry(c.id, {
-          kind: "demo.state-change",
-          data: { text: `Shared App State: ${change.operation} ${change.path || "/"}` },
-        }),
-      ctx,
-    );
-    return { ok: true as const, ...(await this.deviceDoc("app.shared-state")) };
+    return this.playground.demoState(c, body);
   }
 
   /** Start a durable job from a client: the conversation owns the run, and a transcript entry anchors its card. */
   async startJob(row: SessionRow, h: Harness, c: Conversation, body: Record<string, unknown>) {
-    const def = typeof body.job === "string" ? jobDef(body.job) : undefined;
-    if (!def) throw invalid(`job must be one of ${JOB_DEFS.map((d) => d.id).join(", ")}`);
-    let input;
-    try {
-      input = resolveJobInput(def, body.input ?? {});
-    } catch (e) {
-      throw invalid((e as Error).message);
-    }
     if (!this.sessions.isOpen(row.id)) throw new ApiFault("unavailable", "Session is not open");
-    const jobs = this.sessions.jobs(row);
-    const taskId = await c.commit(async (tx) => {
-      const id = await jobs.start(tx, c.id, { def, input, startedBy: "you", now: Date.now() });
-      await tx.appendEntry(c.id, { kind: "demo.job", data: { taskId: id as number, job: def.id, text: `Started ${def.title}` } });
-      return id;
-    }, ctx);
-    h.resume();
-    return { taskId: taskId as number };
+    return this.playground.startJob(row, h, c, this.sessions.jobs(row), body);
   }
 
   async approveJob(c: Conversation, taskId: number, approved: unknown) {
-    if (typeof approved !== "boolean") throw invalid("approved must be a boolean");
-    await c.commit(async (tx) => {
-      const run = (await tx.doc(JobRuns, c.id)).items[String(taskId)];
-      if (!run || run.approval !== "pending") throw new ApiFault("conflict", "No pending approval for that run");
-      run.approval = approved ? "approved" : "declined";
-    }, ctx);
-    return { ok: true as const };
+    return this.playground.approveJob(c, taskId, approved);
   }
 
   // ------------------------------------------------------------ idempotency
