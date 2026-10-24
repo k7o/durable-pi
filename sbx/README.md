@@ -2,8 +2,9 @@
 
 One sandbox, one device. The image carries `dpi-backend` (the device server that owns durable
 sessions, tools and checkpoints in SQLite) and `dpi-tui` (the terminal client that attaches to
-it). The descriptor asks the host to keep the sandbox running with no client attached, so
-closing the terminal or restarting the backend does not end a run.
+it), plus `dpi-demo-backend`, the playground pack the boot script points `DPI_PACK` at so a
+sandbox is a demo device by default. The descriptor asks the host to keep the sandbox running
+with no client attached, so closing the terminal or restarting the backend does not end a run.
 
 For the end-to-end runbook — hub on the host, devices in sandboxes, enrollment, day-two ops —
 see [SETUP.md](SETUP.md).
@@ -52,6 +53,12 @@ durable attach      # dpi-tui on a session in the workspace
 durable shell       # a login shell in the workspace
 ```
 
+The demo tools (`update_state`, `run_durable_job`, todo documents) come from the pack, not from
+the device: `DPI_PACK=` empty in the sandbox's environment serves the bare device. That switch
+only works because the descriptor's startup hook lists `DPI_PACK` — hook env is deny-by-default,
+so an unlisted variable never reaches `durable start`. `just kit test` covers the provider matrix
+that follows from it.
+
 ## Wiring it into a network
 
 A kit turns one sandbox into one device. Joining that device to a network means moving its token
@@ -84,7 +91,8 @@ sbx env create ~/sbx-envs/durable-dev/sbxenv.yaml --name device-a --env-arg host
 - **A model provider of its own.** Credentials come from the sandbox's bindings: `opencode` and
   `deepseek` are declared optional because a device runs on either, and on `faux` with neither.
   `DPI_PROVIDER` picks one; if its key is not bound, the boot script falls back to whichever key
-  is, and to `faux` if neither is. This workload needs the provider-selection patch from the
+  is, and to `faux` if neither is — provided the demo pack is loaded, since faux is the pack's
+  provider. Without a pack and without a key the device starts anyway and lists no models. This workload needs the provider-selection patch from the
   parent branch — on upstream's `main` the backend is OpenRouter-only.
 - **Anything published.** The image is built locally. Pushing it to a registry is what makes
   `kits: [k7o/sbx-kit-durable:0.1.0]` in an environment file resolvable, and what lets CI rebuild

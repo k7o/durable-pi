@@ -10,7 +10,7 @@ Steps 1–4 are once per machine. Steps 5–6 are once per device. Step 7 proves
 
 ```
 host                                    sandbox (one per device)
-  hub                :4781  ────┐        dpi-backend  :4780
+  hub                :4781  ────┐        dpi-backend  :4780  (+ the playground pack)
   ~/.dpi/network.sqlite         │  token   ~/.dpi/backend.env      token
   dpi-network.yaml              └─inject──►~/.dpi/backend/          sessions, checkpoints
   sbx credential proxy ────────────────────► outbound to opencode.ai / api.deepseek.com
@@ -18,6 +18,13 @@ host                                    sandbox (one per device)
 ```
 
 Nothing on the host calls a model. Nothing in a sandbox holds a key.
+
+**What a device sandbox serves.** The image carries two apps: the device (`apps/dpi-backend`:
+boot, HTTP/SSE, sessions, agents, durability) and the playground demo (`apps/dpi-demo-backend`:
+App State, todos, the four durable jobs, the pager, the extra tools and the `/demo` routes).
+`durable start` points `DPI_PACK` at the demo's pack, so a sandbox is a demo device by default —
+the tools you see in the browser include `update_state` and `run_durable_job`. A bare device is
+`DPI_PACK: ""` in the environment file (step 5); the demo app's faux model goes with the pack.
 
 ## 1. Prerequisites on the host
 
@@ -36,8 +43,11 @@ Every command below is written with `just` first and the raw equivalent after it
 
 ```bash
 cd <checkout>
-just kit build                              # stage the apps, then docker buildx build
+DPI_KIT_TAG=k7o/sbx-kit-durable:0.1.0 just kit build   # stage the apps, then docker buildx build
 ```
+
+The tag matters later: `just kit build` defaults to `k7o/sbx-kit-durable:dev`, and step 5's
+no-publish path references the image by the tag you actually built.
 
 The raw form of the same thing — staging matters, because the descriptor's own directory is the
 build context root and it cannot reach `apps/`:
@@ -51,7 +61,8 @@ docker buildx build -f sbx/durable.yaml -t k7o/sbx-kit-durable:0.1.0 sbx/
 
 Expect the sandbox-kit frontend to be pulled, the descriptor to be decoded, and
 `docker.io/k7o/sbx-kit-durable:0.1.0` to be produced. That build is itself the validation: if the
-descriptor or a capability is wrong, it fails there rather than inside a sandbox.
+descriptor or a capability is wrong, it fails there rather than inside a sandbox. `just kit test`
+checks the provider selection the boot script makes without building anything.
 
 Rebuild and recreate a device after any change under `apps/` — kit content is applied at sandbox
 creation only.
@@ -63,7 +74,7 @@ status go through. Neither needs a provider key.
 
 ```bash
 cd <checkout>
-just install                                # npm ci in dpi-sdk, dpi-backend, dpi-demo-backend, dpi-playground, dpi-tui
+just install                                # npm install in dpi-sdk, dpi-backend, dpi-demo-backend, dpi-playground, dpi-tui
 just hub build                              # vue-tsc + tsc + vite build of the SPA
 ```
 
@@ -162,12 +173,20 @@ sbx settings set env.rememberHostCommands true
 Host ports are global, so each device needs its own. `ports.host` pins it and `lifecycle.postCreate`
 runs `sbx/enroll.sh`, which reads the token out of the new sandbox and registers it.
 
+The `env:` block is where the device's own configuration lives, and it is the only place that can
+change it without a rebuild: `DPI_PROVIDER`, `DPI_MODEL`, `DPI_DEVICE_NAME`. Add `DPI_PACK: ""`
+there to serve the bare device instead of the playground — the descriptor's startup hook names
+`DPI_PACK`, so the value reaches the boot script. Do not ask for `DPI_PROVIDER: faux` with
+`DPI_PACK: ""`: faux is the demo app's provider, and the boot script refuses to start on it without
+a pack (`just kit test` pins that).
+
 **The one thing to check on your host:** `kits:` in the example names a registry reference
 (`k7o/sbx-kit-durable:0.1.0`), which assumes the image is pushed. If you would rather not publish:
 
 ```bash
 # a) local image, if the sbx daemon shares your Docker image store
 #    kits: [k7o/sbx-kit-durable:0.1.0]  +  sandboxOptions: {pullPolicy: never}
+#    (the tag must be the one you built: DPI_KIT_TAG=… just kit build, default is :dev)
 # b) the kit directory itself
 #    kits: [<checkout>/sbx]  and set agent to whatever name sbx resolves for it
 ```
@@ -204,13 +223,16 @@ just net status                             # every declared device should read 
 
 In the browser: click a device, create a session, send a turn, and watch it stream.
 
-Then prove the two properties this architecture exists for:
+Then prove the three properties this architecture exists for:
 
 ```bash
 # 1. no key in the sandbox — you should see a sentinel, not a key
 sbx exec device-a sh -c 'grep -E "OPENCODE|DEEPSEEK" ~/.dpi/backend.env'
 
-# 2. durability — start a turn, close the browser (or kill the hub), reopen the device
+# 2. the device serves the playground: one line, and the path is the demo app's pack
+sbx exec device-a sh -c 'grep DPI_PACK ~/.dpi/backend.env'
+
+# 3. durability — start a turn, close the browser (or kill the hub), reopen the device
 #    The agent keeps running on its own; the transcript is checkpointed in SQLite
 #    (~/.dpi/backend/sessions/<uuid>/agent.sqlite) before anything is shown.
 sbx exec device-a sh -c 'tail -5 ~/.dpi/backend.log'
@@ -222,6 +244,7 @@ sbx exec device-a sh -c 'tail -5 ~/.dpi/backend.log'
 |---|---|
 | add a device | declare it in `dpi-network.yaml`, then `sbx env create … --name device-c --env-arg hostPort=4782` |
 | change provider or model | edit `env:` in the env file, then `sbx env run <file>` (applies to new sessions, no recreate) |
+| serve the bare device, or bring the playground back | edit `env:` in the env file — `DPI_PACK: ""` for the bare device, remove the key for the packed one — then restart the sandbox: the startup hook rewrites `~/.dpi/backend.env` at boot, and that file is where the pack is recorded |
 | change ports, kits, workspace | `sbx env rm <file>` then create again — those take effect only at creation |
 | recreate a device after a rebuild | same id and port; `enroll.sh` replaces the token and forgets the stale uid |
 | rotate a device token | not supported for `url` devices: recreate the sandbox, or edit its `backend.env`, restart the backend, and re-enroll |
@@ -234,7 +257,8 @@ sbx exec device-a sh -c 'tail -5 ~/.dpi/backend.log'
 | hub shows no devices | nothing declared/registered: `just net status`, and check `dpi-network.yaml` resolved where you think (`net status` prints the config path) |
 | device `offline` | backend not up (`sbx exec device-a tail -20 ~/.dpi/backend.log`) or its port is not published (`sbx ports device-a`) |
 | device `unauthorized` | stored token is stale — re-run `./sbx/enroll.sh device-a device-a` |
-| device lists 0 models | the key for `DPI_PROVIDER` is not bound in that sandbox; the backend logs a warning at startup and runs on `faux` |
+| device lists 0 models | `DPI_PROVIDER` is a real provider and its key is not bound in that sandbox: the backend logs a warning at startup and runs, with nothing to offer a new session. Fix the `bindings` entry or set `DPI_PROVIDER` to a provider whose key is bound |
+| device lists 0 models though the env file said `faux`, or you set `DPI_PACK: ""` | faux is the demo pack's provider, not the device's: with no pack the boot script starts on a real provider instead (`durable start` logs which). Restore `DPI_PACK` or bind a key |
 | `model_error` on a turn | the sentinel reached the provider unswapped: the `bindings` entry for that service is missing or its domain is not allowed |
 | hub answers `421` / `403` | its Host/origin guard: use a name from its allowlist (`localhost`, `127.0.0.1`, or the machine name) rather than an arbitrary IP or FQDN |
 | `database already owned by process` | a stale backend in the sandbox still holds the lock: kill it and `durable start` |
