@@ -6,14 +6,9 @@
 //   jev-damage-control   Jev judges every bash command before it runs and blocks destructive ones
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
-import { defineDoc, defineExtension, hook, section, ToolTask, type Conversation, type Extension } from "@earendil-works/pi-durable";
-import type { AgentExtensions as AgentExtensionsInfo, HarnessExtensionInfo } from "../../../dpi-sdk/src/api.js";
-import type { SessionRow } from "../catalog.js";
-import type { ChangeFeed } from "../changes.js";
-import { invalid } from "../errors.js";
+import { defineDoc, defineExtension, hook, section, ToolTask, type Extension } from "@earendil-works/pi-durable";
+import type { HarnessExtensionInfo } from "../../../dpi-sdk/src/api.js";
 import { askJev, type JevAnswer, type JevQuestion } from "./jev.js";
-import type { SessionRuntime } from "../session-runtime.js";
 
 const PROMPTS_DIR = join(import.meta.dirname, "../../prompts");
 
@@ -142,57 +137,3 @@ export function createAddons(opts: { offline: boolean }) {
 }
 
 export type Addons = ReturnType<typeof createAddons>;
-
-/**
- * The custom extensions an agent has selected: the installed addons, their defaults, and the
- * system-prompt checklist stored on the conversation. Edits configure the agent's selection.
- */
-export class ExtensionSelection {
-  constructor(
-    private readonly sessions: SessionRuntime,
-    private readonly changes: ChangeFeed,
-  ) {}
-
-  async of(row: SessionRow, c: Conversation): Promise<AgentExtensionsInfo> {
-    const active = new Set((await c.agent(ctx)).extensions.map((e) => e.name));
-    const checked = (await this.sessions.harness(row).snapshot(PromptChecklist, c.id, ctx))?.enabled ?? [PROMPTS[0].id];
-    return {
-      builtIn: [...active].filter((name) => !ADDON_INFO.some((a) => a.name === name)),
-      extensions: ADDON_INFO.map((info) => ({
-        ...info,
-        enabled: active.has(info.name),
-        ...(info.name === "system-prompts"
-          ? { prompts: PROMPTS.map(({ id, title, description, text }) => ({ id, title, description, text, enabled: checked.includes(id) })) }
-          : {}),
-      })),
-    };
-  }
-
-  /** `{name, enabled}` edits the agent's extension selection; `{prompt, enabled}` edits its prompt checklist. */
-  async set(row: SessionRow, c: Conversation, body: Record<string, unknown>): Promise<AgentExtensionsInfo> {
-    if (typeof body.enabled !== "boolean") throw invalid("enabled must be a boolean");
-    const enabled = body.enabled;
-    if (typeof body.name === "string") {
-      const extension = this.sessions.addons(row).all[body.name];
-      if (!extension) throw invalid(`Unknown extension ${body.name}. Known: ${ADDON_INFO.map((a) => a.name).join(", ")}`);
-      // An array is the agent's whole selection. An { add | remove } object would edit the host default instead and
-      // replace the previous edit, so turning one extension on would turn the other off.
-      const rank = (name: string) => ADDON_INFO.findIndex((a) => a.name === name);
-      const others = (await c.agent(ctx)).extensions.filter((e) => e.name !== extension.name);
-      const next = (enabled ? [...others, extension] : others).sort((a, b) => rank(a.name) - rank(b.name));
-      await c.configure({ extensions: next }, ctx);
-    } else if (typeof body.prompt === "string") {
-      const prompt = body.prompt;
-      if (!PROMPTS.some((p) => p.id === prompt)) throw invalid(`Unknown prompt ${prompt}. Known: ${PROMPTS.map((p) => p.id).join(", ")}`);
-      await c.commit(async (tx) => {
-        const doc = await tx.doc(PromptChecklist, c.id);
-        const next = new Set(doc.enabled);
-        if (enabled) next.add(prompt);
-        else next.delete(prompt);
-        doc.enabled = PROMPTS.map((p) => p.id).filter((id) => next.has(id));
-      }, ctx);
-    } else throw invalid("name or prompt is required");
-    this.changes.notify();
-    return this.of(row, c);
-  }
-}

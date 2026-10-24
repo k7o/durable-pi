@@ -7,15 +7,19 @@ import { Device } from "./device.js";
 import { bearerAuth } from "./auth.js";
 import { errorMiddleware } from "./errors.js";
 import { v1 } from "./routes.js";
+import { createDemoPack } from "./playground/pack.js";
 
 const config = loadConfig();
-const device = await Device.open({
-  dataDir: config.dataDir,
-  startDirs: config.startDirs,
-  name: config.name,
-  provider: config.provider,
-  defaultModel: config.defaultModel,
-});
+const device = await Device.open(
+  {
+    dataDir: config.dataDir,
+    startDirs: config.startDirs,
+    name: config.name,
+    provider: config.provider,
+    defaultModel: config.defaultModel,
+  },
+  createDemoPack({ offline: config.provider === "faux" }),
+);
 
 const app = express();
 app.disable("x-powered-by");

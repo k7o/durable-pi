@@ -4,14 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Documents } from "../src/documents.js";
-import { SharedState } from "../src/playground/shared-state.js";
+import { createDemoPack } from "../src/playground/pack.js";
 
-test("documents: serves the device document and refuses unknown kinds", async () => {
+test("documents: serves the pack's device document and refuses unknown kinds", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dpi-documents-"));
-  const shared = await SharedState.open(join(dir, "app-state.sqlite"));
+  const pack = createDemoPack({ offline: true });
+  await pack.open({ dataDir: dir, appStatePath: join(dir, "app-state.sqlite"), notify: () => {} });
   try {
-    await shared.initialize({ goal: "Explore durable agents", counter: 0, notes: [] });
-    const documents = new Documents(shared);
+    const documents = new Documents(pack);
     const doc = await documents.deviceDoc("app.shared-state");
     assert.deepEqual(doc.value, { goal: "Explore durable agents", counter: 0, notes: [] });
     assert.equal(typeof doc.revision, "number");
@@ -22,7 +22,7 @@ test("documents: serves the device document and refuses unknown kinds", async ()
       /Unknown agent document/,
     );
   } finally {
-    await shared.close();
+    await pack.close();
     await rm(dir, { recursive: true, force: true });
   }
 });

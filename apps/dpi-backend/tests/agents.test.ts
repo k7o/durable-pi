@@ -10,7 +10,8 @@ import { Conversations } from "../src/conversations.js";
 import { Agents } from "../src/agents.js";
 import { Models } from "../src/models.js";
 import { SessionRuntime } from "../src/session-runtime.js";
-import { SharedState } from "../src/playground/shared-state.js";
+import { Documents } from "../src/documents.js";
+import { EMPTY_PACK } from "../src/pack.js";
 
 async function tempAgents() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-agents-")));
@@ -19,20 +20,19 @@ async function tempAgents() {
   const changes = new ChangeFeed();
   const catalog = await Catalog.open(join(root, "data"), changes);
   const models = await Models.open("faux");
-  const shared = await SharedState.open(join(root, "data", "app-state.sqlite"));
   const sessions = new SessionRuntime({
     catalog,
     models,
     compaction: new Compaction(catalog, models),
     changes,
-    shared,
+    pack: EMPTY_PACK,
+    documents: new Documents(EMPTY_PACK),
     spawn: async () => {
       throw Error("unused");
     },
     archiveDir: join(root, "data", "archive"),
     startDirs: [work],
     name: "test",
-    offline: true,
   });
   const row: SessionRow = {
     id: "s1",
@@ -54,7 +54,6 @@ async function tempAgents() {
     row,
     cleanup: async () => {
       await sessions.close();
-      await shared.close();
       await catalog.close();
       await rm(root, { recursive: true, force: true });
     },

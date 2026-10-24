@@ -1,55 +1,44 @@
-// The documents a client may read: the device's shared App State, and the per-conversation documents the backend
-// declares. One list per job that needs it, so a new conversation document cannot be registered in one place and
-// seeded in another: the kind registry, the seeder and the reads all come from CONVERSATION_DOCS below.
-import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
+// The documents a client may read, built from the pack: the conversation documents a new conversation seeds, and the
+// device-scoped documents `GET /v1/docs/:kind` serves. One list each, so a document cannot be registered in one place
+// and seeded in another.
 import type { Conversation, ConversationId, Harness, Tx } from "@earendil-works/pi-durable";
-import type { AppState } from "../../dpi-sdk/src/app-state.js";
-import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
-import { TODOS_DOC } from "../../dpi-sdk/src/todos.js";
 import { notFound } from "./errors.js";
-import { WORKSPACE_DOC, Workspace } from "./playground/features/app-state/doc.js";
-import { JobRuns } from "./playground/features/jobs/record.js";
-import { Todos } from "./playground/features/todos/doc.js";
-import type { ConversationDoc } from "./pack.js";
-import type { SharedState } from "./playground/shared-state.js";
-
-export const APP_STATE_DOC = "app.shared-state";
-export const DEVICE_DOC_KINDS = [APP_STATE_DOC];
-
-/**
- * Conversation documents in seeding order: Workspace, JobRuns, Todos. The seeder has always created them in that
- * order and a client does not depend on it, so this list is the one place that decides it.
- */
-const CONVERSATION_DOCS: readonly ConversationDoc[] = [
-  { kind: WORKSPACE_DOC, empty: {}, seed: (tx, id) => tx.doc(Workspace, id), read: (h, id) => h.snapshot(Workspace, id, ctx) },
-  {
-    kind: JOB_RUNS_DOC,
-    empty: { counts: {}, items: {} },
-    seed: (tx, id) => tx.doc(JobRuns, id),
-    read: (h, id) => h.snapshot(JobRuns, id, ctx),
-  },
-  { kind: TODOS_DOC, empty: { items: [] }, seed: (tx, id) => tx.doc(Todos, id), read: (h, id) => h.snapshot(Todos, id, ctx) },
-];
-
-export const AGENT_DOC_KINDS = CONVERSATION_DOCS.map((doc) => doc.kind);
-
-/** Create every conversation document of a new conversation, in seeding order. */
-export async function seedConversation(tx: Tx, conversationId: ConversationId) {
-  for (const doc of CONVERSATION_DOCS) await doc.seed(tx, conversationId);
-}
+import type { ConversationDoc, DeviceDoc, DevicePack } from "./pack.js";
 
 export class Documents {
-  constructor(private readonly shared: SharedState) {}
+  private readonly agentDocs: readonly ConversationDoc[];
+  private readonly deviceDocs: readonly DeviceDoc[];
+
+  constructor(pack: DevicePack) {
+    this.agentDocs = pack.docs ?? [];
+    this.deviceDocs = pack.deviceDocs ?? [];
+  }
+
+  /** The agent document kinds a client may subscribe to. */
+  get agentKinds(): readonly string[] {
+    return this.agentDocs.map((doc) => doc.kind);
+  }
+
+  /** The device document kinds a client may subscribe to. */
+  get deviceKinds(): readonly string[] {
+    return this.deviceDocs.map((doc) => doc.kind);
+  }
+
+  /** Create every conversation document of a new conversation, in seeding order. */
+  async seed(tx: Tx, conversationId: ConversationId) {
+    for (const doc of this.agentDocs) await doc.seed(tx, conversationId);
+  }
 
   async agentDoc(h: Harness, c: Conversation, kind: string) {
-    const doc = CONVERSATION_DOCS.find((entry) => entry.kind === kind);
-    if (!doc) throw notFound(`Unknown agent document ${kind}. Known: ${AGENT_DOC_KINDS.join(", ")}`);
+    const doc = this.agentDocs.find((entry) => entry.kind === kind);
+    if (!doc) throw notFound(`Unknown agent document ${kind}. Known: ${this.agentKinds.join(", ")}`);
     const value = await doc.read(h, c.id);
     return JSON.parse(JSON.stringify(value ?? doc.empty)) as unknown;
   }
 
-  async deviceDoc(kind: string): Promise<{ value: AppState; revision: number }> {
-    if (kind !== APP_STATE_DOC) throw notFound(`Unknown device document ${kind}`);
-    return this.shared.snapshot();
+  async deviceDoc(kind: string): Promise<{ value: unknown; revision?: number }> {
+    const doc = this.deviceDocs.find((entry) => entry.kind === kind);
+    if (!doc) throw notFound(`Unknown device document ${kind}`);
+    return doc.read();
   }
 }

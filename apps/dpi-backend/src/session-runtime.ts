@@ -1,5 +1,5 @@
-// A session's runtime: its database, lock, harness, jobs, addons and selected extensions. One
-// instance owns every open session on the device; archiving stops work and moves the files aside.
+// A session's runtime: its database, lock, harness and extensions. One instance owns every open session on the
+// device; archiving stops work and moves the files aside.
 //
 // Where a request goes, each hop named by the file that owns it. Start here when tracing one:
 //
@@ -7,14 +7,12 @@
 //     device.ts                composition root: joins across modules, no SQL, no fs, no harness
 //       agents.ts              resolve, list, create, fork, configure, and agent projections
 //       conversations.ts       send, abort, withdraw, entries, transcript, tasks
-//       playground/demo.ts     demo endpoints: App State writes, start a job, answer an approval
+//       extensions.ts          which custom extensions an agent selected
 //       documents.ts           reads for GET .../docs/:kind, and the one list of conversation documents
-//       playground/playground.ts  the assembler: features in, the one `playground` extension out
-//       THIS FILE              one Harness per open session, plus its Jobs, Addons and registry
+//       pack.ts                the seam: what the product built on this device supplies
+//       THIS FILE              one Harness per open session, and the extensions its pack installs
 //         harness              pi-durable: entries, documents, tasks and submissions, one commit each
-//           playground/features/jobs/    a run is a task; each phase records steps and commits a checkpoint
-//           playground/features/*/tools  a tool runs in its own task and commits its effect before answering
-//         playground/shared-state.ts  chord replicated App State, shared by every session and agent
+//           the pack's tools   a tool runs in its own task and commits its effect before answering
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { Harness, createRegistry } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
@@ -24,36 +22,32 @@ import { mkdir, readdir, realpath, rename as renamePath, stat } from "node:fs/pr
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { SessionSummary, ThinkingLevel } from "../../dpi-sdk/src/api.js";
-import { createAddons, type Addons } from "./playground/addons.js";
 import type { Catalog, SessionRow } from "./catalog.js";
 import type { ChangeFeed } from "./changes.js";
 import type { Compaction } from "./compaction.js";
+import type { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
-import { seedConversation } from "./documents.js";
-import { createPlayground } from "./playground/playground.js";
-import type { SpawnSession } from "./spawn.js";
-import { createJobs, type Jobs } from "./playground/features/jobs/engine.js";
-import { JobRuns } from "./playground/features/jobs/record.js";
 import { lockFile } from "./locks.js";
 import type { Models } from "./models.js";
-import type { SharedState } from "./playground/shared-state.js";
-import { Todos } from "./playground/features/todos/doc.js";
+import type { DevicePack } from "./pack.js";
+import type { SpawnSession } from "./spawn.js";
 import { CODING_WRITES, withWrites } from "./tool-policy.js";
 
-type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void; jobs: Jobs; addons: Addons };
+type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void };
 
 export interface SessionRuntimeOptions {
   catalog: Catalog;
   models: Models;
   compaction: Compaction;
   changes: ChangeFeed;
-  shared: SharedState;
+  /** The product on this device: its documents, its extensions, and the session extensions it installs. */
+  pack: DevicePack;
+  documents: Documents;
   spawn: SpawnSession;
   archiveDir: string;
   startDirs: string[];
   /** The device name, used in error messages. */
   name: string;
-  offline: boolean;
 }
 
 export class SessionRuntime {
@@ -79,14 +73,6 @@ export class SessionRuntime {
 
   harness(row: SessionRow): Harness {
     return this.openedFor(row).harness;
-  }
-
-  jobs(row: SessionRow): Jobs {
-    return this.openedFor(row).jobs;
-  }
-
-  addons(row: SessionRow): Addons {
-    return this.openedFor(row).addons;
   }
 
   /** Why a session is unavailable, if it failed to open. */
@@ -133,13 +119,13 @@ export class SessionRuntime {
       const registry = createRegistry();
       const coding = withWrites(CodingTools, CODING_WRITES);
       registry.install(coding);
-      const jobs = createJobs({ shared: this.options.shared, sessionId: row.id, todos: Todos });
-      const thresholds = () => this.options.compaction.get(row.id);
-      const playground = createPlayground(this.options.shared, row.id, this.options.spawn, jobs);
-      registry.install(playground);
+      const session = this.options.pack.createSession({ spawn: this.options.spawn });
+      // The pack's extensions in install order: its tools first, then the agent's own system extensions.
+      const installed = [coding, ...session.install({ sessionId: row.id })];
+      for (const extension of installed) registry.install(extension);
       // Custom extensions are installed but not selected: an agent turns them on in its own selection.
-      const addons = createAddons({ offline: this.options.offline });
-      for (const extension of addons.list) registry.install(extension);
+      for (const addon of this.options.pack.sessionExtensions?.list ?? []) registry.install(addon.extension);
+      const thresholds = () => this.options.compaction.get(row.id);
       const harness = await Harness.open(
         await openNodeSqliteStorage(row.dbPath),
         {
@@ -147,10 +133,10 @@ export class SessionRuntime {
           registry,
           env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? row.cwd, shellEnv }),
           conversationCreated: async (tx, c) => {
-            await seedConversation(tx, c.id);
+            await this.options.documents.seed(tx, c.id);
           },
           settings: {
-            extensions: [coding, playground],
+            extensions: installed,
             // Read at every use, so a PATCH .../compaction applies from the next request.
             get compaction() {
               return thresholds();
@@ -181,7 +167,7 @@ export class SessionRuntime {
       row.model = rootModel.modelId;
       this.options.catalog.setSessionModel(row.id, { provider: row.provider, modelId: row.model });
       const unsubscribe = harness.subscribeCommits(() => this.options.changes.notify());
-      this.opened.set(row.id, { harness, unlock, unsubscribe, jobs, addons });
+      this.opened.set(row.id, { harness, unlock, unsubscribe });
       this.errors.delete(row.id);
       if (create) harness.resume();
       return harness;

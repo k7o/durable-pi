@@ -9,8 +9,10 @@ import {
   type StateChange,
 } from "../../../dpi-sdk/src/app-state.js";
 
+export const APP_STATE_DOC = "app.shared-state";
+
 const Data = defineDoc<AppState>({
-  kind: "app.shared-state",
+  kind: APP_STATE_DOC,
   version: 1,
   scope: "session",
   initial: () => ({}),

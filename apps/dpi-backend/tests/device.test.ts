@@ -6,15 +6,16 @@ import { mkdir } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import type { Device } from "../src/device.js";
 import { JOB_RUNS_DOC, type JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
+import type { DemoPack } from "../src/playground/pack.js";
 import { faux, tempDevice, until } from "./helpers.js";
 
 const jobs = async (store: Device, session: string) => {
   const { h, c } = await store.resolveAgent(session, "main");
   return (await store.agentDoc(h, c, JOB_RUNS_DOC)) as JobRunsDoc;
 };
-const startJob = async (store: Device, session: string, job: string, input: Record<string, unknown> = {}) => {
+const startJob = async (store: Device, pack: DemoPack, session: string, job: string, input: Record<string, unknown> = {}) => {
   const m = await store.resolveAgent(session, "main");
-  return (await store.startJob(m.row, m.h, m.c, { job, input })).taskId;
+  return (await pack.playground.startJob(store, m.row.id, m.c, { job, input })).taskId;
 };
 
 test("sessions, browse, names, forks, jobs, restart recovery, approval, interruption, archive", async () => {
@@ -45,9 +46,9 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
 
     // App State changes append an entry; a fork at that entry sees the current shared state.
     const main = await store.resolveAgent(session.id, "main");
-    await store.demoState(main.c, { increment: true });
+    await t.pack.playground.demoState(store, main.c, { increment: true });
     const entry = (await store.activeEntries(main.c)).at(-1)!;
-    await store.demoState(main.c, { increment: true });
+    await t.pack.playground.demoState(store, main.c, { increment: true });
     const fork = await store.fork(main.row, main.c, { entryId: entry.id, name: "alt approach" });
     assert.equal(fork.kind, "fork");
     assert.equal(fork.parentId, 1);
@@ -55,7 +56,7 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
     assert.equal(((await store.deviceDoc("app.shared-state")).value as { counter: number }).counter, 2);
 
     // A durable job survives a restart: change-watch resumes its watch phase from the last checkpoint.
-    const watch = await startJob(store, session.id, "change-watch", { checks: 3, interval_seconds: 2 });
+    const watch = await startJob(store, t.pack, session.id, "change-watch", { checks: 3, interval_seconds: 2 });
     await until(async () => ((await jobs(store, session.id)).items[watch]?.phases[1].progress?.done ?? 0) >= 1, 15000, "first check");
     await store.close();
     store = await t.open();
@@ -68,17 +69,17 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
 
     // The run record names the job and its phase on the task itself.
     let m = await store.resolveAgent(session.id, "main");
-    const snapshot = await startJob(store, session.id, "workspace-snapshot");
+    const snapshot = await startJob(store, t.pack, session.id, "workspace-snapshot");
     await until(async () => (await store.liveTasks(m.h)).some((t) => t.id === snapshot && t.label === "Workspace snapshot #1"), 10000, "job label");
     await until(async () => (await jobs(store, session.id)).items[snapshot]?.status === "completed", 20000, "snapshot");
     run = (await jobs(store, session.id)).items[snapshot];
     assert.ok(run.phases[0].steps.some((s) => s.kind === "command" && s.label.startsWith("git status")));
     assert.match(run.result ?? "", /matches run #1/);
-    await assert.rejects(() => startJob(store, session.id, "nope"), /job must be one of/);
-    await assert.rejects(() => startJob(store, session.id, "change-watch", { checks: 99 }), /checks must be 2 to 20/);
+    await assert.rejects(() => startJob(store, t.pack, session.id, "nope"), /job must be one of/);
+    await assert.rejects(() => startJob(store, t.pack, session.id, "change-watch", { checks: 99 }), /checks must be 2 to 20/);
 
     // Release check: a subagent's bash call becomes a step; the approval waits across a restart, then publishes.
-    const release = await startJob(store, session.id, "release-check");
+    const release = await startJob(store, t.pack, session.id, "release-check");
     await until(async () => (await jobs(store, session.id)).items[release]?.approval === "pending", 20000, "approval");
     run = (await jobs(store, session.id)).items[release];
     assert.ok(run.phases[1].steps.some((s) => s.kind === "tool" && s.label === "bash" && s.status === "done"));
@@ -87,12 +88,12 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
     store = await t.open();
     m = await store.resolveAgent(session.id, "main");
     assert.equal((await jobs(store, session.id)).items[release].approval, "pending");
-    await store.approveJob(m.c, release, true);
-    await assert.rejects(() => store.approveJob(m.c, release, true), /No pending approval/);
+    await t.pack.playground.approveJob(m.c, release, true);
+    await assert.rejects(() => t.pack.playground.approveJob(m.c, release, true), /No pending approval/);
     await until(async () => (await jobs(store, session.id)).items[release]?.status === "completed", 20000, "release published");
 
     // Interrupt stops foreground work only; background=true also stops runs the conversation owns.
-    const bg = await startJob(store, session.id, "change-watch", { checks: 20, interval_seconds: 60 });
+    const bg = await startJob(store, t.pack, session.id, "change-watch", { checks: 20, interval_seconds: 60 });
     await until(async () => (await jobs(store, session.id)).items[bg]?.phase === "watch", 15000, "watching");
     await store.abort(m.c, false);
     assert.equal((await jobs(store, session.id)).items[bg].status, "running");

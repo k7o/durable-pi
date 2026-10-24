@@ -9,7 +9,8 @@ import { ChangeFeed } from "../src/changes.js";
 import { Compaction } from "../src/compaction.js";
 import { Models } from "../src/models.js";
 import { SessionRuntime } from "../src/session-runtime.js";
-import { SharedState } from "../src/playground/shared-state.js";
+import { Documents } from "../src/documents.js";
+import { EMPTY_PACK } from "../src/pack.js";
 
 async function tempRuntime() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-runtime-")));
@@ -18,20 +19,19 @@ async function tempRuntime() {
   const changes = new ChangeFeed();
   const catalog = await Catalog.open(join(root, "data"), changes);
   const models = await Models.open("faux");
-  const shared = await SharedState.open(join(root, "data", "app-state.sqlite"));
   const runtime = new SessionRuntime({
     catalog,
     models,
     compaction: new Compaction(catalog, models),
     changes,
-    shared,
+    pack: EMPTY_PACK,
+    documents: new Documents(EMPTY_PACK),
     spawn: async () => {
       throw Error("the runtime test never spawns a session");
     },
     archiveDir: join(root, "data", "archive"),
     startDirs: [work],
     name: "test",
-    offline: true,
   });
   const row = (id: string, name: string): SessionRow => ({
     id,
@@ -50,7 +50,6 @@ async function tempRuntime() {
     row,
     cleanup: async () => {
       await runtime.close();
-      await shared.close();
       await catalog.close();
       await rm(root, { recursive: true, force: true });
     },
@@ -65,7 +64,6 @@ test("session runtime: opens a session's harness, then closes it", async () => {
     const harness = await t.runtime.open(row, true);
     assert.equal(t.runtime.isOpen("s1"), true);
     assert.equal(t.runtime.harness(row), harness);
-    assert.ok(t.runtime.jobs(row));
 
     await t.runtime.close();
     assert.equal(t.runtime.isOpen("s1"), false);
@@ -100,7 +98,6 @@ test("session runtime: a session that cannot open reports unavailable", async ()
     t.catalog.insertSession(bad);
     await t.runtime.openAll([bad], { create: false });
     assert.throws(() => t.runtime.harness(bad), /Session Broken is unavailable/);
-    assert.throws(() => t.runtime.jobs(bad), /Session Broken is unavailable/);
     assert.equal(t.runtime.isOpen("bad"), false);
   } finally {
     await t.cleanup();

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "../src/documents.js";
+import { createDemoPack } from "../src/playground/pack.js";
 import { v1 } from "../src/routes.js";
 import { tempDevice } from "./helpers.js";
 import type { SpawnSession } from "../src/spawn.js";
@@ -170,6 +170,7 @@ test("contracts: document kinds", () => {
   // Kinds are a rename contract, not an order contract: the agent kinds are the keys of one registry and the plan
   // seeds conversations in a different order (Workspace, JobRuns, Todos), so pinning the key order here would only
   // fight the seeding list that slice 6 collapses.
-  assert.deepEqual([...AGENT_DOC_KINDS].sort(), ["demo.job-runs", "demo.todos", "demo.workspace"]);
-  assert.deepEqual([...DEVICE_DOC_KINDS].sort(), ["app.shared-state"]);
+  const pack = createDemoPack({ offline: true });
+  assert.deepEqual(pack.docs?.map((doc) => doc.kind).sort(), ["demo.job-runs", "demo.todos", "demo.workspace"]);
+  assert.deepEqual(pack.deviceDocs?.map((doc) => doc.kind).sort(), ["app.shared-state"]);
 });

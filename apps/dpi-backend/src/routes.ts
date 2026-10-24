@@ -2,7 +2,7 @@
 // unique name; agent refs are a numeric id, `main`, or a unique name.
 import { Router, type Request, type Response, type NextFunction } from "express";
 import type { Conversation, Harness } from "@earendil-works/pi-durable";
-import { DEVICE_DOC_KINDS, type SessionRow, type Device } from "./device.js";
+import type { SessionRow, Device } from "./device.js";
 import { agentStream, deviceStream, sessionStream } from "./streams.js";
 import { idempotent } from "./idempotency.js";
 import { invalid } from "./errors.js";
@@ -63,7 +63,7 @@ export function v1(device: Device) {
     "/docs/:kind",
     route(async (req, res) => {
       const kind = param(req, "kind");
-      if (!DEVICE_DOC_KINDS.includes(kind)) throw invalid(`Unknown device document ${kind}`);
+      if (!device.documents.deviceKinds.includes(kind)) throw invalid(`Unknown device document ${kind}`);
       res.json({ kind, ...(await device.deviceDoc(kind)) });
     }),
   );
@@ -167,16 +167,9 @@ export function v1(device: Device) {
     }),
   );
 
-  // ---------------------------------------------------------- demo extension
-  r.post(`${a}/demo/state`, route(async (req, res) => res.json(await device.demoState(L(res).c, req.body ?? {}))));
-  r.post(
-    `${a}/demo/jobs`,
-    route(async (req, res) => res.status(201).json(await device.startJob(L(res).row, L(res).h, L(res).c, req.body ?? {}))),
-  );
-  r.post(
-    `${a}/demo/jobs/:taskId/approval`,
-    route(async (req, res) => res.json(await device.approveJob(L(res).c, int(req.params.taskId, "taskId"), req.body?.approved))),
-  );
+  // ---------------------------------------------------------- the pack's own routes
+  const extra = device.pack.routes?.(device);
+  if (extra) r.use(extra);
 
   return r;
 }

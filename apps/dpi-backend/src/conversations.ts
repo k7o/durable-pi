@@ -1,14 +1,8 @@
 // A conversation's transcript surface: input, submissions, tasks, history, the inbox and usage.
-// These are the calls that talk to one pi-durable conversation; none of them needs the device.
+// These are the calls that talk to one pi-durable conversation; none of them needs the device. A task label a pack
+// owns (a job run's title) is asked of the pack; a tool call's label is read here.
 import { BACKGROUND_CONTEXT as ctx, withAbortSignal } from "@earendil-works/chord/context";
-import type {
-  Conversation,
-  ConversationId,
-  EntryId,
-  Harness,
-  TaskId,
-  SubmissionId,
-} from "@earendil-works/pi-durable";
+import type { Conversation, EntryId, Harness, TaskId, SubmissionId } from "@earendil-works/pi-durable";
 import { InboxDoc } from "@earendil-works/pi-durable";
 import type {
   InboxItem,
@@ -22,8 +16,6 @@ import type {
 } from "../../dpi-sdk/src/api.js";
 import { messageText, toMarkdown, toTranscript } from "../../dpi-sdk/src/transcript.js";
 import { invalid, notFound } from "./errors.js";
-import { jobDef } from "./playground/features/jobs/defs.js";
-import { JobRuns } from "./playground/features/jobs/record.js";
 
 const encodeCursor = (cursor: unknown) =>
   cursor === undefined ? undefined : Buffer.from(JSON.stringify(cursor)).toString("base64url");
@@ -36,9 +28,14 @@ const decodeCursor = (cursor?: string) => {
   }
 };
 
+export type TaskLabel = { label?: string; callId?: string };
+
 export class Conversations {
-  /** Task labels never change once known: tool names of pi.tool tasks, job titles of job runs. */
-  private readonly taskLabels = new Map<string, { label?: string; callId?: string }>();
+  /** Task labels never change once known: tool names of pi.tool tasks, titles of the pack's own runs. */
+  private readonly taskLabels = new Map<string, TaskLabel>();
+
+  /** `packLabel` titles a task the pack owns; undefined means the task is the device's own. */
+  constructor(private readonly packLabel?: (task: TaskNode, h: Harness) => Promise<TaskLabel | undefined>) {}
 
   async send(c: Conversation, body: Record<string, unknown>) {
     if (typeof body.content !== "string" || !body.content.trim() || body.content.length > 100000)
@@ -217,12 +214,9 @@ export class Conversations {
     );
   }
 
-  private async taskLabel(h: Harness, node: TaskNode): Promise<{ label?: string; callId?: string } | undefined> {
-    if (node.kind.startsWith("demo.job.")) {
-      const run = (await h.snapshot(JobRuns, node.conversationId as ConversationId, ctx))?.items[String(node.id)];
-      const def = jobDef(node.kind.slice("demo.job.".length));
-      return def ? { label: run ? `${def.title} #${run.run}` : def.title } : undefined;
-    }
+  private async taskLabel(h: Harness, node: TaskNode): Promise<TaskLabel | undefined> {
+    const packLabel = await this.packLabel?.(node, h);
+    if (packLabel) return packLabel;
     if (node.kind !== "pi.tool") return undefined;
     const task = await h.getTask(node.id as TaskId, ctx);
     const input = task?.input as { assistant?: number; callId?: string } | undefined;

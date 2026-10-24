@@ -3,7 +3,7 @@
 // Two packs exist — the empty one below and the demo app's — so this is one small interface, not a plugin framework.
 import type { Router } from "express";
 import type { Conversation, ConversationId, Extension, Harness, Tx } from "@earendil-works/pi-durable";
-import type { TaskNode } from "../../dpi-sdk/src/api.js";
+import type { DeviceInfo, TaskNode } from "../../dpi-sdk/src/api.js";
 import type { SpawnSession } from "./spawn.js";
 import type { Device } from "./device.js";
 
@@ -74,7 +74,7 @@ export interface DevicePack {
   /** Extra `/v1` routes, mounted behind the same token middleware. */
   routes?(device: Device): Router;
   /** Merged into `GET /v1/device` — this is where `jobs` and the demo capability come from. */
-  info?(): Record<string, unknown>;
+  info?(): Partial<DeviceInfo>;
   /** Title a task this pack owns; undefined falls through to the device's own labels. */
   labelTask?(task: TaskNode, h: Harness): Promise<{ label?: string; callId?: string } | undefined>;
 }

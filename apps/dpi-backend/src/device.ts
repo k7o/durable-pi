@@ -1,6 +1,6 @@
-// The device: one machine's sessions, agents, documents and jobs. This is the composition root —
-// it opens the device's modules and holds the few use cases that span them. Every other method is a
-// delegation or a documented join; see docs/agents/store-split.md.
+// The device: one machine's sessions, agents and documents. This is the composition root — it opens the device's
+// modules, hands them the pack, and holds the few use cases that span them. Every other method is a delegation or a
+// documented join; see docs/agents/store-split.md. What the product on the device contributes is src/pack.ts.
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation, ConversationId, Harness, ModelRef } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
@@ -27,7 +27,6 @@ import {
   type WireEntry,
 } from "../../dpi-sdk/src/api.js";
 import { lastAssistantText } from "../../dpi-sdk/src/transcript.js";
-import { ExtensionSelection } from "./playground/addons.js";
 import { Agents, type Resolved } from "./agents.js";
 import { Catalog, type SessionRow } from "./catalog.js";
 import { ChangeFeed } from "./changes.js";
@@ -35,19 +34,19 @@ import { Compaction } from "./compaction.js";
 import { Conversations } from "./conversations.js";
 import { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
-import type { SpawnSession } from "./spawn.js";
-import { JOB_DEFS } from "./playground/features/jobs/defs.js";
-import { lockFile } from "./locks.js";
+import { ExtensionSelection } from "./extensions.js";
 import { Models } from "./models.js";
-import { Playground } from "./playground/demo.js";
+import { EMPTY_PACK, type DevicePack } from "./pack.js";
 import type { ProviderId } from "./provider.js";
 import { SessionRuntime } from "./session-runtime.js";
-import { SharedState } from "./playground/shared-state.js";
+import type { SpawnSession } from "./spawn.js";
 
-export { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "./documents.js";
 export type { Resolved, SessionRow };
 
 export const DURABLE_VERSION = "1.0.3";
+
+/** What every device does: streams and document reads. A pack adds the capabilities it brings. */
+export const DEVICE_CAPABILITIES: DeviceInfo["capabilities"] = ["events", "docs"];
 
 export interface DeviceOptions {
   dataDir: string;
@@ -64,14 +63,11 @@ const CODE_DIR = resolve(import.meta.dirname, "../../..");
 export class Device {
   readonly startedAt = Date.now();
   readonly uid: string;
-  readonly conversations = new Conversations();
-  shared!: SharedState;
+  readonly conversations: Conversations;
   documents!: Documents;
   sessions!: SessionRuntime;
   agentView!: Agents;
   agentExtensions!: ExtensionSelection;
-  playground!: Playground;
-  private unlockShared?: () => void;
 
   get catalogPath() {
     return join(this.options.dataDir, "catalog.sqlite");
@@ -98,33 +94,37 @@ export class Device {
     readonly changes: ChangeFeed,
     readonly models: Models,
     readonly compaction: Compaction,
+    readonly pack: DevicePack,
   ) {
     this.uid = catalog.deviceUid;
+    this.conversations = new Conversations(pack.labelTask?.bind(pack));
   }
 
-  static async open(options: DeviceOptions) {
+  static async open(options: DeviceOptions, pack: DevicePack = EMPTY_PACK) {
     const resolved = { ...options, dataDir: resolve(options.dataDir) };
     const changes = new ChangeFeed();
     const catalog = await Catalog.open(resolved.dataDir, changes);
     const models = await Models.open(resolved.provider, resolved.defaultModel);
     const compaction = new Compaction(catalog, models);
-    const device = new Device(resolved, catalog, changes, models, compaction);
+    const device = new Device(resolved, catalog, changes, models, compaction, pack);
     try {
-      device.unlockShared = lockFile(`${device.sharedStatePath}.lock`);
-      device.shared = await SharedState.open(device.sharedStatePath);
-      device.documents = new Documents(device.shared);
-      device.playground = new Playground(device.shared, device.documents);
+      await pack.open?.({
+        dataDir: resolved.dataDir,
+        appStatePath: device.sharedStatePath,
+        notify: () => device.notify(),
+      });
+      device.documents = new Documents(pack);
       device.sessions = new SessionRuntime({
         catalog,
         models,
         compaction,
         changes,
-        shared: device.shared,
+        pack,
+        documents: device.documents,
         spawn: device.spawnSession,
         archiveDir: device.archiveDir,
         startDirs: device.startDirs,
         name: device.name,
-        offline: resolved.provider === "faux",
       });
       device.agentView = new Agents({
         catalog,
@@ -134,12 +134,9 @@ export class Device {
         sessions: device.sessions,
         conversations: device.conversations,
       });
-      device.agentExtensions = new ExtensionSelection(device.sessions, changes);
-      device.shared.harness.subscribeCommits(() => device.notify());
+      device.agentExtensions = new ExtensionSelection(device.sessions, changes, pack.sessionExtensions);
       await device.sessions.prepare();
       await device.sessions.openAll(device.list());
-      if (!(await device.shared.initialized()))
-        await device.shared.initialize({ goal: "Explore durable agents", counter: 0, notes: [] });
       device.sessions.resumeAll();
       return device;
     } catch (e) {
@@ -172,8 +169,8 @@ export class Device {
     defaultModel: this.models.defaultModelId,
     storage: { dataDir: this.options.dataDir, catalogPath: this.catalogPath, appStatePath: this.sharedStatePath },
     codeDir: CODE_DIR,
-    capabilities: ["events", "docs", "demo", "jobs"],
-    jobs: JOB_DEFS,
+    capabilities: [...DEVICE_CAPABILITIES],
+    ...this.pack.info?.(),
   });
 
   routedModel = (model?: ModelRef): ModelRef => this.models.routed(model);
@@ -356,18 +353,6 @@ export class Device {
     return { uid: this.uid, name: this.name, sessions, at: Date.now() };
   }
 
-  // ------------------------------------------------------------ playground
-
-  demoState = (c: Conversation, body: Record<string, unknown>) => this.playground.demoState(c, body);
-
-  /** Start a durable job from a client: the conversation owns the run, and a transcript entry anchors its card. */
-  startJob(row: SessionRow, h: Harness, c: Conversation, body: Record<string, unknown>) {
-    if (!this.sessions.isOpen(row.id)) throw new ApiFault("unavailable", "Session is not open");
-    return this.playground.startJob(row, h, c, this.sessions.jobs(row), body);
-  }
-
-  approveJob = (c: Conversation, taskId: number, approved: unknown) => this.playground.approveJob(c, taskId, approved);
-
   // ------------------------------------------------------------ idempotency
 
   replay = (key: string, route: string) => this.catalog.replay(key, route);
@@ -377,8 +362,7 @@ export class Device {
 
   async close() {
     await this.sessions?.close();
-    await this.shared?.close();
-    this.unlockShared?.();
+    await this.pack.close?.();
     await this.catalog.close();
   }
 }

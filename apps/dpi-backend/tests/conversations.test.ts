@@ -11,7 +11,8 @@ import { Compaction } from "../src/compaction.js";
 import { Conversations } from "../src/conversations.js";
 import { Models } from "../src/models.js";
 import { SessionRuntime } from "../src/session-runtime.js";
-import { SharedState } from "../src/playground/shared-state.js";
+import { Documents } from "../src/documents.js";
+import { EMPTY_PACK } from "../src/pack.js";
 
 async function tempConversation() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-conv-")));
@@ -20,20 +21,19 @@ async function tempConversation() {
   const changes = new ChangeFeed();
   const catalog = await Catalog.open(join(root, "data"), changes);
   const models = await Models.open("faux");
-  const shared = await SharedState.open(join(root, "data", "app-state.sqlite"));
   const runtime = new SessionRuntime({
     catalog,
     models,
     compaction: new Compaction(catalog, models),
     changes,
-    shared,
+    pack: EMPTY_PACK,
+    documents: new Documents(EMPTY_PACK),
     spawn: async () => {
       throw Error("unused");
     },
     archiveDir: join(root, "data", "archive"),
     startDirs: [work],
     name: "test",
-    offline: true,
   });
   const row: SessionRow = {
     id: "s1",
@@ -52,7 +52,6 @@ async function tempConversation() {
     conversations: new Conversations(),
     cleanup: async () => {
       await runtime.close();
-      await shared.close();
       await catalog.close();
       await rm(root, { recursive: true, force: true });
     },

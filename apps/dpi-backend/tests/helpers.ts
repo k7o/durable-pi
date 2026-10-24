@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Device } from "../src/device.js";
+import { createDemoPack } from "../src/playground/pack.js";
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function until(fn: () => Promise<boolean>, timeout = 15000, what = "condition") {
@@ -18,11 +19,13 @@ export async function tempDevice() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-be-")));
   await mkdir(join(root, "work", "project", "nested"), { recursive: true });
   const options = { dataDir: join(root, "data"), startDirs: [join(root, "work")], name: "test", provider: "faux" as const };
+  const pack = createDemoPack({ offline: true });
   return {
     root,
     work: join(root, "work"),
     options,
-    open: () => Device.open(options),
+    pack,
+    open: () => Device.open(options, pack),
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }

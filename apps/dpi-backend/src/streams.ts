@@ -5,7 +5,7 @@ import type { Request, Response } from "express";
 import { watchEvents, type Conversation, type Harness } from "@earendil-works/pi-durable";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Activity, DeviceTree, Frame, StreamScope } from "../../dpi-sdk/src/api.js";
-import { AGENT_DOC_KINDS, DEVICE_DOC_KINDS, type SessionRow, type Device } from "./device.js";
+import type { SessionRow, Device } from "./device.js";
 import { invalid } from "./errors.js";
 
 const MAX_BUFFER = 2_000_000;
@@ -127,7 +127,7 @@ export function diffActivity(prev: DeviceTree | undefined, next: DeviceTree): Ac
 // ---------------------------------------------------------------- device scope
 
 export function deviceStream(device: Device, req: Request, res: Response) {
-  const docs = parseDocs(req.query.docs, DEVICE_DOC_KINDS);
+  const docs = parseDocs(req.query.docs, device.documents.deviceKinds);
   const sse = openSse(res, { kind: "device" });
   let previous: DeviceTree | undefined;
   const push = coalesce(async () => {
@@ -196,7 +196,7 @@ export async function agentStream(
   res: Response,
 ) {
   const { row, h, c } = target;
-  const docs = parseDocs(req.query.docs, AGENT_DOC_KINDS);
+  const docs = parseDocs(req.query.docs, device.documents.agentKinds);
   const stream = await watchEvents(h, c.id, ctx);
   const sse = openSse(res, { kind: "agent", sessionId: row.id, agentId: c.id as number });
   sse.send({
