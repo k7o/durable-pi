@@ -47,7 +47,7 @@ pick_provider() {
 }
 
 write_env() {
-  local token provider model start_dirs
+  local token provider model start_dirs pack
   # Reading a file that may not exist yet is its own branch: with `set -e` and `pipefail`, a
   # failing `sed` in the middle of a pipeline fails the whole assignment and takes the script
   # with it, before the fallback below ever runs.
@@ -70,6 +70,10 @@ write_env() {
     printf 'DPI_PORT=%s\n' "$PORT"
     printf 'DPI_HOST=0.0.0.0\n'
     printf 'DPI_START_DIRS=%s\n' "$start_dirs"
+    # The sandbox is a demo device: dpi-backend loads the playground pack from apps/dpi-demo-backend.
+    # Set DPI_PACK= (empty) in the sandbox's environment to serve the bare device instead.
+    pack="${DPI_PACK-/opt/durable-pi/apps/dpi-demo-backend/src/pack.ts}"
+    if [ -n "$pack" ] && [ -f "$pack" ]; then printf 'DPI_PACK=%s\n' "$pack"; fi
     printf 'DPI_PROVIDER=%s\n' "$provider"
     printf 'DPI_MODEL=%s\n' "$model"
     # Credentials reach the container as proxy sentinels; the real keys stay on the host.
@@ -104,7 +108,7 @@ start() {
   fi
 
   write_env
-  log "starting dpi-backend on $BASE_URL (provider $(sed -n 's/^DPI_PROVIDER=//p' "$ENV_FILE"), start dir $(sed -n 's/^DPI_START_DIRS=//p' "$ENV_FILE"))"
+  log "starting dpi-backend on $BASE_URL (pack $(sed -n 's|^DPI_PACK=.*/\(.*\)/pack.ts$|\1|p' "$ENV_FILE" | head -1 | grep . || echo bare), provider $(sed -n 's/^DPI_PROVIDER=//p' "$ENV_FILE"), start dir $(sed -n 's/^DPI_START_DIRS=//p' "$ENV_FILE"))"
   cd "$APP_DIR/apps/dpi-backend"
   # setsid: a long-running service belongs in its own process group, so it outlives the hook
   # that launched it and can be signaled as a unit.

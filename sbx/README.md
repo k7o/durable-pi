@@ -38,7 +38,7 @@ just kit run durable-dev       # stage, then create a sandbox on this checkout
 just kit push k7o/sbx-kit-durable:0.1.0   # publish, so an environment file can reference it
 ```
 
-`just kit stage` copies `apps/{dpi-sdk,dpi-backend,dpi-tui}` into `sbx/build` (gitignored) first,
+`just kit stage` copies `apps/{dpi-sdk,dpi-backend,dpi-demo-backend,dpi-tui}` into `sbx/build` (gitignored) first,
 because the descriptor's own directory is the build context root and the recipe cannot reach
 outside it. That is what keeps the image built from the branch you are standing on rather than
 from a ref that has to be pushed and kept in sync.

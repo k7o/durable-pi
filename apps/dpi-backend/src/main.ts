@@ -18,13 +18,16 @@ async function loadPack(path: string): Promise<DevicePack> {
 }
 
 const config = loadConfig();
+const pack = config.pack ? await loadPack(config.pack) : EMPTY_PACK;
+// A pack may supply a provider this build does not ship (the demo app's faux model); otherwise the device's own.
+const models = config.provider === "faux" && pack.models ? await pack.models() : await Models.open(config.provider, config.defaultModel);
 const device = await Device.open(
   {
     dataDir: config.dataDir,
     startDirs: config.startDirs,
     name: config.name,
-    models: await Models.open(config.provider, config.defaultModel),
+    models,
   },
-  config.pack ? await loadPack(config.pack) : EMPTY_PACK,
+  pack,
 );
 serve(device, config);

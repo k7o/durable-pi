@@ -69,12 +69,14 @@ just net probe <id>    # /healthz 200 and /v1/device 401 without a token
 | `exe-dev` | systemd | VM created on demand; the HTTPS proxy is set public, so the token is the gate |
 | `url` | none | connect only: `just net register <id> --token <t>` |
 
+`just net deploy` ships three apps: this device, [`apps/dpi-sdk`](../dpi-sdk) and [`apps/dpi-demo-backend`](../dpi-demo-backend). The device's entrypoint stays `apps/dpi-backend`; it loads the playground pack from the demo app because the written `backend.env` sets `DPI_PACK` to `<code_dir>/apps/dpi-demo-backend/src/pack.ts`. A device that should serve the bare device sets `DPI_PACK:` (empty) in `dpi-network.yaml`, and the yaml value wins.
+
 Templates live in [`deploy/`](deploy/). The operator skill [`.claude/skills/agent-sandboxes-exe-dev/cookbook/dpi-network.md`](../../.claude/skills/agent-sandboxes-exe-dev/cookbook/dpi-network.md) covers debugging per kind.
 
 ## Layout on a device
 
 ```
-~/dpi/apps/dpi-backend, ~/dpi/apps/dpi-sdk     code (rsynced; safe to replace)
+~/dpi/apps/dpi-backend, apps/dpi-demo-backend, apps/dpi-sdk   code (rsynced; safe to replace)
 ~/.dpi/backend.env                              token + config (0600)
 ~/.dpi/backend/catalog.sqlite                   sessions, agent names, device uid, idempotency keys, compaction thresholds
 ~/.dpi/backend/app-state.sqlite                 the shared App State (the demo pack opens and owns it)
@@ -94,6 +96,8 @@ Templates live in [`deploy/`](deploy/). The operator skill [`.claude/skills/agen
 ## Demo runbook: hop into an already running agent
 
 Any device id from `dpi-network.yaml` whose backend runs as a service works. `DEVICE=mac-mini` below.
+
+The demo tools (`search_history`, the durable jobs, App State, todos, the pager) come from the demo pack, which `just net deploy` installs and enables by default. A device with `DPI_PACK:` empty in its yaml serves the bare device: sessions and agents work, those tools do not exist, and the steps that mention them below do not apply.
 
 ```bash
 just net status                                      # 1. every device online

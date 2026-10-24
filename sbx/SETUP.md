@@ -45,7 +45,7 @@ build context root and it cannot reach `apps/`:
 ```bash
 rm -rf sbx/build && mkdir -p sbx/build/apps
 rsync -a --exclude node_modules --exclude .data --exclude dist \
-  apps/dpi-sdk apps/dpi-backend apps/dpi-tui sbx/build/apps/
+  apps/dpi-sdk apps/dpi-backend apps/dpi-demo-backend apps/dpi-tui sbx/build/apps/
 docker buildx build -f sbx/durable.yaml -t k7o/sbx-kit-durable:0.1.0 sbx/
 ```
 
@@ -63,7 +63,7 @@ status go through. Neither needs a provider key.
 
 ```bash
 cd <checkout>
-just install                                # npm ci in dpi-sdk, dpi-backend, dpi-playground, dpi-tui
+just install                                # npm ci in dpi-sdk, dpi-backend, dpi-demo-backend, dpi-playground, dpi-tui
 just hub build                              # vue-tsc + tsc + vite build of the SPA
 ```
 

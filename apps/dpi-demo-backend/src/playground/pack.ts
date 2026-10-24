@@ -22,6 +22,7 @@ import { JOB_DEFS, jobDef } from "./features/jobs/defs.js";
 import { createJobs, type Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";
 import { Todos } from "./features/todos/doc.js";
+import { fauxModels } from "../faux.js";
 import { createPlayground } from "./playground.js";
 import { APP_STATE_DOC, SharedState } from "./shared-state.js";
 
@@ -147,6 +148,8 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
         },
       };
     },
+    // The free deterministic model: `DPI_PROVIDER=faux` is the demo app's, and the device asks the pack for it.
+    models: () => fauxModels(),
     sessionExtensions: {
       list: sessionExtensions,
       prompts: async (h, conversationId) =>

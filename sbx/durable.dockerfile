@@ -21,15 +21,17 @@ RUN node --version \
         process.exit(1); \
       }'
 
-# apps/dpi-backend and apps/dpi-tui import apps/dpi-sdk by relative path (../../dpi-sdk/src/...),
-# so the three have to keep this layout. The lockfiles are committed; --omit=dev drops the type
+# apps/dpi-backend, apps/dpi-demo-backend and apps/dpi-tui import apps/dpi-sdk (and the demo app
+# imports apps/dpi-backend) by relative path, so all four have to keep this layout. The lockfiles are committed; --omit=dev drops the type
 # packages, which nothing needs at runtime because tsx transpiles without type checking.
-COPY build/apps/dpi-sdk     /opt/durable-pi/apps/dpi-sdk
-COPY build/apps/dpi-backend /opt/durable-pi/apps/dpi-backend
-COPY build/apps/dpi-tui     /opt/durable-pi/apps/dpi-tui
-RUN cd /opt/durable-pi/apps/dpi-sdk     && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
- && cd /opt/durable-pi/apps/dpi-backend && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
- && cd /opt/durable-pi/apps/dpi-tui     && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
+COPY build/apps/dpi-sdk          /opt/durable-pi/apps/dpi-sdk
+COPY build/apps/dpi-backend      /opt/durable-pi/apps/dpi-backend
+COPY build/apps/dpi-demo-backend /opt/durable-pi/apps/dpi-demo-backend
+COPY build/apps/dpi-tui          /opt/durable-pi/apps/dpi-tui
+RUN cd /opt/durable-pi/apps/dpi-sdk          && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
+ && cd /opt/durable-pi/apps/dpi-backend      && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
+ && cd /opt/durable-pi/apps/dpi-demo-backend && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
+ && cd /opt/durable-pi/apps/dpi-tui          && npm ci --omit=dev --no-audit --no-fund --loglevel=error \
  && rm -rf /root/.npm
 
 COPY --chmod=0755 scripts/durable.sh /usr/local/bin/durable

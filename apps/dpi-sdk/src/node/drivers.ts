@@ -91,16 +91,22 @@ echo "node: $(nvm which ${device.node})"`,
 
 async function deploy(device: NetDevice, ctx: DriverContext) {
   const code = device.codeDir.replace(/^~\//, "");
-  ctx.log(`deploy ${device.id}: sync apps/dpi-backend + apps/dpi-sdk → ${device.codeDir}/apps`);
+  ctx.log(`deploy ${device.id}: sync apps/dpi-backend + apps/dpi-demo-backend + apps/dpi-sdk → ${device.codeDir}/apps`);
   await exec(
     device,
     `mkdir -p "${shPath(device.codeDir)}/apps" "${shPath(device.codeDir)}/e2e" "${shPath(device.homeDir)}" && chmod 700 "${shPath(device.homeDir)}"`,
   );
-  await rsync(device, ["apps/dpi-backend", "apps/dpi-sdk"], `${code}/apps/`, ctx.config.root);
+  await rsync(device, ["apps/dpi-backend", "apps/dpi-demo-backend", "apps/dpi-sdk"], `${code}/apps/`, ctx.config.root);
   ctx.log(`deploy ${device.id}: npm ci`);
   await exec(
     device,
     `cd "${shPath(device.codeDir)}/apps/dpi-backend" && nvm exec ${device.node} npm ci --no-audit --no-fund --loglevel=error >/dev/null && echo installed`,
+    { timeoutMs: 900_000 },
+  );
+  // The demo app is shipped too: DPI_PACK points the device at its pack unless the device's yaml says otherwise.
+  await exec(
+    device,
+    `cd "${shPath(device.codeDir)}/apps/dpi-demo-backend" && nvm exec ${device.node} npm ci --no-audit --no-fund --loglevel=error >/dev/null && echo installed`,
     { timeoutMs: 900_000 },
   );
 }
@@ -111,11 +117,16 @@ async function writeEnv(device: NetDevice, ctx: DriverContext, rotate = false) {
   const missing = device.envKeys.filter((k) => !(local[k] ?? process.env[k]));
   if (missing.length) ctx.log(`warning: ${missing.join(", ")} not found in ${join(ctx.config.root, ".env")} or the environment`);
   const home = shPath(device.homeDir);
+  const f = await facts(device);
+  // A deployed device keeps dpi-backend as its entrypoint and gets the playground from the demo app's pack.
+  // A device that wants the bare device sets `DPI_PACK:` (empty) in dpi-network.yaml, which wins below.
+  const pack = `${abs(device.codeDir, f.home)}/apps/dpi-demo-backend/src/pack.ts`;
   const body = [
     `DPI_DEVICE_NAME=${device.id}`,
     `DPI_PORT=${device.port}`,
     `DPI_HOST=${device.host}`,
     `DPI_START_DIRS=${device.startDirs.join(":")}`,
+    `DPI_PACK=${pack}`,
     ...device.envKeys.flatMap((k) => {
       const v = local[k] ?? process.env[k];
       return v && !/[\n\r]/.test(v) ? [`${k}=${v}`] : [];

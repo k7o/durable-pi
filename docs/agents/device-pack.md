@@ -38,14 +38,19 @@ app's own `check`/`test` from slice 3 on):
   demo tools); `apps/dpi-backend/tests/faux.ts` is a minimal echo/slow double for the device's own tests. The plan's
   one-file version would have made the device's tests depend on the demo app, which the guard exists to prevent.
 
-### Follow-ups, recorded rather than discovered in a deploy
+### Follow-ups, done after the split
 
-- **The image build** (`sbx/durable.dockerfile`, `just kit stage`) still bakes `apps/dpi-backend`. The sandboxed
-  workload should run `apps/dpi-demo-backend` (or set `DPI_PACK`); until then the sandbox device serves the bare device.
-- **Deployment** (`just net deploy`, `apps/dpi-backend/deploy/`) rsyncs `dpi-backend` + `dpi-sdk` only. A deployed
-  device is now a bare device by design; deploy the demo app separately if a device should keep the playground.
-- **The demo runbook** in `apps/dpi-backend/README.md` still assumes the demo tools (`search_history`, jobs) on the
-  device it talks to; it needs the demo app deployed or a note that it targets the local demo device.
+- **The image build** (`sbx/durable.dockerfile`, `just kit stage`) copies and installs
+  `apps/dpi-demo-backend` too, and `sbx/scripts/durable.sh` writes
+  `DPI_PACK=/opt/durable-pi/apps/dpi-demo-backend/src/pack.ts` into `backend.env`, so the sandbox
+  device keeps the playground while its entrypoint stays `apps/dpi-backend`. `DPI_PACK=` in the
+  sandbox environment serves the bare device.
+- **Deployment** (`apps/dpi-sdk/src/node/drivers.ts`) rsyncs and installs the demo app, and writes the
+  same `DPI_PACK` into the device's `backend.env`; a device that wants the bare device sets `DPI_PACK:`
+  (empty) in `dpi-network.yaml`, which the env writer applies last. Both scripts were changed and
+  `dpi-sdk` type-checks; neither path was executed against a real sandbox or device here.
+- **The demo runbook** in `apps/dpi-backend/README.md` now says which tools come from the pack and what
+  a bare device does not have.
 
 ## Goal
 
