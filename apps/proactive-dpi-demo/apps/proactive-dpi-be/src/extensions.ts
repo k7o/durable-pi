@@ -10,11 +10,8 @@ import {
   type TaskId,
   type ToolExecutionApi,
 } from "@earendil-works/pi-durable";
-import type { CheckpointInfo } from "@earendil-works/pi-durable";
-
-/** Deltas a document keeps after its newest base before the next change is stored as a base (see the demo pack). */
-const foldEvery = () => (_value: unknown, _ops: unknown, info: CheckpointInfo) => info.deltasSinceBase >= 32;
 import type { Context } from "@earendil-works/chord";
+import { foldEvery } from "../../../../dpi-backend/src/pack.js";
 import type { Deploy, Incident, IncidentStatus, StreamRow } from "../../../shared/types.ts";
 import { verifyAndCommit } from "./repo.ts";
 import type { WatchStore } from "./watch-store.ts";

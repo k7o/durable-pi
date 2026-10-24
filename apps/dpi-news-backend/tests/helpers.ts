@@ -1,17 +1,17 @@
 // Helpers for this app's tests: a temp device on the news pack, and a way to call the tool the way the engine does.
 //
-// The model is the demo app's faux one, borrowed on purpose. pi-durable's device ships no offline model and this app
-// has none of its own, so a session cannot be created without a provider — a seam gap worth naming rather than
-// hiding. The device should own a test double; until it does, a second app borrows the demo's in tests only.
+// The model is the device's own double (`apps/dpi-backend/src/faux.ts`), which every app on the device can use, so a
+// pack's suite never reaches into another pack for one.
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { defineTask, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { Device } from "../../dpi-backend/src/device.js";
-import { faux, fauxModels } from "../../dpi-demo-backend/src/faux.js";
+import { faux, fauxModels } from "../../dpi-backend/src/faux.js";
+import { createNewsDigest } from "../src/digest.js";
 import { createNewsPack } from "../src/pack.js";
-import { NewsTool } from "../src/tool.js";
+import { createNewsTool } from "../src/tool.js";
 
 export { faux };
 
@@ -75,6 +75,7 @@ export async function callTool(store: Device, session: string, args: Record<stri
     conversationId: c.id,
     commit: (change: (tx: never) => unknown, commitContext: typeof ctx) => h.commit(change as never, commitContext),
   } as unknown as ToolExecutionApi;
-  const result = await NewsTool.execute(args as never, api, ctx);
+  const tool = createNewsTool(createNewsDigest(store.appState));
+  const result = await tool.execute(args as never, api, ctx);
   return (result.output as { type: string; text: string }[])[0].text;
 }

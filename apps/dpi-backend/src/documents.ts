@@ -1,15 +1,21 @@
-// The documents a client may read, built from the pack: the conversation documents a new conversation seeds, and the
-// device-scoped documents `GET /v1/docs/:kind` serves. One list each, so a document cannot be registered in one place
-// and seeded in another.
+// The documents a client may read, built from the device and the pack: the conversation documents a new conversation
+// seeds, and the device-scoped documents `GET /v1/docs/:kind` serves. App State is the device's own device document, so
+// it is served whether or not a pack exists; a pack may add more. One list each, so a document cannot be registered in
+// one place and seeded in another.
 import type { Conversation, ConversationId, Harness, Tx } from "@earendil-works/pi-durable";
 import { notFound } from "./errors.js";
+import type { SharedState } from "./app-state.js";
+import { APP_STATE_DOC } from "../../dpi-sdk/src/app-state.js";
 import type { ConversationDoc, DeviceDoc, DevicePack } from "./pack.js";
 
 export class Documents {
   private readonly agentDocs: readonly ConversationDoc[];
   private readonly deviceDocs: readonly DeviceDoc[];
 
-  constructor(pack: DevicePack) {
+  constructor(
+    pack: DevicePack,
+    private readonly shared: SharedState,
+  ) {
     this.agentDocs = pack.docs ?? [];
     this.deviceDocs = pack.deviceDocs ?? [];
   }
@@ -19,9 +25,9 @@ export class Documents {
     return this.agentDocs.map((doc) => doc.kind);
   }
 
-  /** The device document kinds a client may subscribe to. */
+  /** The device document kinds a client may subscribe to: App State first, then whatever the pack adds. */
   get deviceKinds(): readonly string[] {
-    return this.deviceDocs.map((doc) => doc.kind);
+    return [APP_STATE_DOC, ...this.deviceDocs.map((doc) => doc.kind)];
   }
 
   /** Create every conversation document of a new conversation, in seeding order. */
@@ -37,6 +43,7 @@ export class Documents {
   }
 
   async deviceDoc(kind: string): Promise<{ value: unknown; revision?: number }> {
+    if (kind === APP_STATE_DOC) return this.shared.snapshot();
     const doc = this.deviceDocs.find((entry) => entry.kind === kind);
     if (!doc) throw notFound(`Unknown device document ${kind}`);
     return doc.read();

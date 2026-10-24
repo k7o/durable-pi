@@ -12,7 +12,7 @@ import { createPlayground } from "../src/playground/playground.js";
 import { JOB_DEFS } from "../src/playground/features/jobs/defs.js";
 import type { Jobs } from "../src/playground/features/jobs/engine.js";
 import { TOOL_DESCRIPTIONS } from "../src/playground/prompt.js";
-import type { SharedState } from "../src/playground/shared-state.js";
+import type { SharedState } from "../../dpi-backend/src/app-state.js";
 
 /**
  * The assembled extension, with every argument that assembly is not allowed to touch replaced by a throwing stub.
@@ -184,5 +184,6 @@ test("contracts: document kinds", () => {
   // fight the seeding list that slice 6 collapses.
   const pack = createDemoPack({ offline: true });
   assert.deepEqual(pack.docs?.map((doc) => doc.kind).sort(), ["demo.job-runs", "demo.todos", "demo.workspace"]);
-  assert.deepEqual(pack.deviceDocs?.map((doc) => doc.kind).sort(), ["app.shared-state"]);
+  // App State is the device's document, served whether a pack exists or not, so the pack adds none of its own.
+  assert.equal(pack.deviceDocs, undefined);
 });

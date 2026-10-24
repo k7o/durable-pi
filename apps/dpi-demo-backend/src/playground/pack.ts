@@ -1,19 +1,21 @@
-// The demo pack: App State, todos, the durable jobs, the pager, session spawning and the playground prompt. This is
-// the one file the demo app adds to the device; deleting the app leaves the device a bare device.
+// The demo pack: the shared workspace document, todos, the durable jobs, the pager, session spawning and the
+// playground prompt. This is the one file the demo app adds to the device; deleting the app leaves the device a bare
+// device.
 //
-// It owns the App State database (`app-state.sqlite`, the path `GET /v1/device` publishes), the conversation
-// documents a session seeds in order (Workspace, JobRuns, Todos), the two custom extensions, the three `/demo`
-// routes and the device info the demo adds (`jobs`, the demo capability).
+// The App State database is the device's (`app-state.sqlite`, the path `GET /v1/device` publishes): this pack only seeds
+// the keys it owns (`goal`, `counter`, `notes`) and reads and changes the document through the store the device hands
+// it. The pack owns the conversation documents a session seeds in order (Workspace, JobRuns, Todos), the two custom
+// extensions, the three `/demo` routes and the device info the demo adds (`jobs`, the demo capability).
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { AppState } from "../../../dpi-sdk/src/app-state.js";
+import type { SharedState } from "../../../dpi-backend/src/app-state.js";
 import { JOB_RUNS_DOC } from "../../../dpi-sdk/src/jobs.js";
 import { TODOS_DOC } from "../../../dpi-sdk/src/todos.js";
 import { DEVICE_CAPABILITIES, type Device } from "../../../dpi-backend/src/device.js";
 import { invalid } from "../../../dpi-backend/src/errors.js";
-import { lockFile } from "../../../dpi-backend/src/locks.js";
-import type { ConversationDoc, DeviceDoc, DevicePack, PackExtension, PackSession } from "../../../dpi-backend/src/pack.js";
+import type { ConversationDoc, DevicePack, PackExtension, PackSession } from "../../../dpi-backend/src/pack.js";
 import type { SpawnSession } from "../../../dpi-backend/src/spawn.js";
 import { ADDON_INFO, PromptChecklist, PROMPTS, createAddons } from "./addons.js";
 import { DemoEndpoints } from "./demo.js";
@@ -24,22 +26,20 @@ import { JobRuns } from "./features/jobs/record.js";
 import { Todos } from "./features/todos/doc.js";
 import { fauxModels } from "../faux.js";
 import { createPlayground } from "./playground.js";
-import { APP_STATE_DOC, SharedState } from "./shared-state.js";
 
 const SEED: AppState = { goal: "Explore durable agents", counter: 0, notes: [] };
 
 /** The demo pack, plus the use cases and state its routes and its tests share. */
 export interface DemoPack extends DevicePack {
   readonly endpoints: DemoEndpoints;
-  /** The open App State store. `Device.open` opens it and closes it with the pack. */
+  /** The device's App State store, as handed to `open`. The device opens and closes it. */
   shared(): SharedState;
-  open(deps: { dataDir: string; appStatePath: string; notify: () => void }): Promise<void>;
+  open(deps: { dataDir: string; appState: SharedState; notify: () => void }): Promise<void>;
   close(): Promise<void>;
 }
 
 export function createDemoPack(options: { offline: boolean }): DemoPack {
   let shared: SharedState | undefined;
-  let unlock: (() => void) | undefined;
   const jobsBySession = new Map<string, Jobs>();
   const addons = createAddons(options);
   const requireShared = () => {
@@ -58,16 +58,6 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
       read: (h, id) => h.snapshot(JobRuns, id, ctx),
     },
     { kind: TODOS_DOC, empty: { items: [] }, seed: (tx, id) => tx.doc(Todos, id), read: (h, id) => h.snapshot(Todos, id, ctx) },
-  ];
-
-  const deviceDocs: readonly DeviceDoc[] = [
-    {
-      kind: APP_STATE_DOC,
-      read: async () => {
-        const { value, revision } = await requireShared().snapshot();
-        return { value, revision };
-      },
-    },
   ];
 
   const sessionExtensions: PackExtension[] = ADDON_INFO.map((info) => ({
@@ -114,32 +104,21 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
   return {
     name: "demo",
     docs,
-    deviceDocs,
     endpoints,
     shared: requireShared,
-    async open({ appStatePath, notify }) {
-      unlock = lockFile(`${appStatePath}.lock`);
-      try {
-        shared = await SharedState.open(appStatePath);
-        shared.harness.subscribeCommits(notify);
-        if (!(await shared.initialized())) await shared.initialize(SEED);
-      } catch (e) {
-        await shared?.close().catch(() => {});
-        shared = undefined;
-        unlock?.();
-        unlock = undefined;
-        throw e;
-      }
+    async open({ appState, notify }) {
+      // The device opened the store and wakes its own change feed; the pack only contributes the keys it owns, and
+      // `seed` leaves a key that already exists alone so a restart does not reset the demo's state.
+      shared = appState;
+      await shared.seed(SEED);
+      notify();
     },
     async close() {
-      const current = shared;
+      // App State belongs to the device; closing it here would break the next pack that opens.
       shared = undefined;
       jobsBySession.clear();
-      await current?.close();
-      unlock?.();
-      unlock = undefined;
     },
-    createSession({ spawn }: { spawn: SpawnSession }): PackSession {
+    createSession({ spawn }: { spawn: SpawnSession; appState: SharedState }): PackSession {
       return {
         install: ({ sessionId }) => {
           const jobs = createJobs({ shared: requireShared(), sessionId, todos: Todos });

@@ -79,7 +79,7 @@ Templates live in [`deploy/`](deploy/). The operator skill [`.claude/skills/agen
 ~/dpi/apps/dpi-backend, apps/dpi-demo-backend, apps/dpi-sdk   code (rsynced; safe to replace)
 ~/.dpi/backend.env                              token + config (0600)
 ~/.dpi/backend/catalog.sqlite                   sessions, agent names, device uid, idempotency keys, compaction thresholds
-~/.dpi/backend/app-state.sqlite                 the shared App State (the demo pack opens and owns it)
+~/.dpi/backend/app-state.sqlite                 the shared App State (the device opens and locks it; a pack seeds its keys)
 ~/.dpi/backend/sessions/<uuid>/agent.sqlite     one pi-durable harness per session
 ~/.dpi/backend/archive/                          archived sessions (DELETE never removes files)
 ~/.dpi/backend.log                              service log
@@ -97,7 +97,7 @@ Templates live in [`deploy/`](deploy/). The operator skill [`.claude/skills/agen
 
 Any device id from `dpi-network.yaml` whose backend runs as a service works. `DEVICE=mac-mini` below.
 
-The demo tools (`search_history`, the durable jobs, App State, todos, the pager) come from the demo pack, which `just net deploy` installs and enables by default. A device with `DPI_PACK:` empty in its yaml serves the bare device: sessions and agents work, those tools do not exist, and the steps that mention them below do not apply.
+The demo tools (`search_history`, the durable jobs, the todos, the pager, and the `read_state`/`update_state` pair that edits App State) come from the demo pack, which `just net deploy` installs and enables by default. App State itself is the device's, and every pack can read and change it. A device with `DPI_PACK:` empty in its yaml serves the bare device: sessions and agents work, those tools do not exist, and the steps that mention them below do not apply.
 
 ```bash
 just net status                                      # 1. every device online

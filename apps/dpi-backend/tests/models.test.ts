@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Models } from "../src/models.js";
-import { fauxModels } from "./faux.js";
+import { faux, fauxModels } from "../src/faux.js";
 
 test("models: faux lists one deterministic model and routes anything else to it", async () => {
   const models = await fauxModels();
@@ -26,6 +26,11 @@ test("models: accepts only a model from this device's catalog", async () => {
   assert.throws(() => models.validate(undefined), /model must be/);
 });
 
-test("models: the device does not ship the demo app's fake provider", async () => {
-  await assert.rejects(() => Models.open("faux"), /demo app's model/);
+test("models: faux is a device binary's offline double, not a provider Models.open ships", async () => {
+  // The double lives in src/faux.ts and every device entrypoint wires it for DPI_PROVIDER=faux; `Models.open` is the
+  // real-provider path and must keep saying no, or a deployed device would start with a model that cannot answer.
+  await assert.rejects(() => Models.open("faux"), /offline model/);
+  assert.deepEqual(faux, { provider: "faux", modelId: "echo" });
+  const models = await fauxModels();
+  assert.equal(models.defaultModelId, "echo");
 });

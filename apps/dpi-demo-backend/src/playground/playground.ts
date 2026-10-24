@@ -12,7 +12,7 @@ import type { SpawnSession } from "../../../dpi-backend/src/spawn.js";
 import { pager } from "./features/side-effects/tool.js";
 import { todos } from "./features/todos/tools.js";
 import { PLAYGROUND_SECTION } from "./prompt.js";
-import type { SharedState } from "./shared-state.js";
+import type { SharedState } from "../../../dpi-backend/src/app-state.js";
 
 /**
  * Features in the order their tools are offered. The order is the contract the snapshot test pins: ping_on_call_engineer

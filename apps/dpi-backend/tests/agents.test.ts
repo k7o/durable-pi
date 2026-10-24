@@ -8,9 +8,10 @@ import { ChangeFeed } from "../src/changes.js";
 import { Compaction } from "../src/compaction.js";
 import { Conversations } from "../src/conversations.js";
 import { Agents } from "../src/agents.js";
-import { fauxModels } from "./faux.js";
+import { fauxModels } from "../src/faux.js";
 import { SessionRuntime } from "../src/session-runtime.js";
 import { Documents } from "../src/documents.js";
+import type { SharedState } from "../src/app-state.js";
 import { EMPTY_PACK } from "../src/pack.js";
 
 async function tempAgents() {
@@ -20,13 +21,16 @@ async function tempAgents() {
   const changes = new ChangeFeed();
   const catalog = await Catalog.open(join(root, "data"), changes);
   const models = await fauxModels();
+  // The empty pack has no device documents, so App State is never read here.
+  const appState = { snapshot: async () => ({ value: {}, revision: 0 }) } as unknown as SharedState;
   const sessions = new SessionRuntime({
     catalog,
     models,
     compaction: new Compaction(catalog, models),
     changes,
     pack: EMPTY_PACK,
-    documents: new Documents(EMPTY_PACK),
+    appState,
+    documents: new Documents(EMPTY_PACK, appState),
     spawn: async () => {
       throw Error("unused");
     },

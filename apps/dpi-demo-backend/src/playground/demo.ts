@@ -11,7 +11,8 @@ import { ApiFault, invalid } from "../../../dpi-backend/src/errors.js";
 import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";
-import { APP_STATE_DOC, type SharedState } from "./shared-state.js";
+import { APP_STATE_DOC } from "../../../dpi-sdk/src/app-state.js";
+import type { SharedState } from "../../../dpi-backend/src/app-state.js";
 
 export class DemoEndpoints {
   constructor(

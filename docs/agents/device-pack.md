@@ -58,7 +58,7 @@ app's own `check`/`test` from slice 3 on):
 ## Goal
 
 `apps/dpi-backend` becomes the device only: boot, HTTP/SSE, sessions, agents, durability. The
-playground demo — App State, todos, `search_history`, the four jobs, the pager, the custom addons,
+playground demo — the workspace document, todos, `search_history`, the four jobs, the pager, the custom addons,
 the prompt, the fake model, the `/demo` routes — moves to a new `apps/dpi-demo-backend`, which
 composes the device with a pack. Deleting that app must not touch anything under `apps/dpi-backend/src`.
 

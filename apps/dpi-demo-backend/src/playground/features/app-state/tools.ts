@@ -4,7 +4,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import { readState } from "../../../../../dpi-sdk/src/app-state.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import type { SharedState } from "../../shared-state.js";
+import type { SharedState } from "../../../../../dpi-backend/src/app-state.js";
 import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
 import { Receipt } from "../receipt.js";

@@ -11,7 +11,7 @@ app actually cost? — and the answer is this directory.
 | Document `news.stories` | `src/stories.ts` | Conversation-scoped, rewindable, forked as of the fork point. Holds the list, a run counter and the last digest. |
 | Receipt `news.receipt` | `src/stories.ts` | Task-scoped, so a replayed tool call returns its first result. |
 | Tool `news` | `src/tool.ts` | `add`, `list`, `rank`, `digest`. Every action commits its edit and its receipt together. |
-| Task `news.digest` | `src/digest.ts` | One phase, one commit, one outcome. Started by the tool, runs in the background. |
+| Task `news.digest` | `src/digest.ts` | One phase, one commit, one outcome. Started by the tool, runs in the background, and records the last run in App State under `/news`. |
 | Pack | `src/pack.ts` | One document, one extension, one capability (`news`). Default export for `DPI_PACK`. |
 | Wire types | `apps/dpi-sdk/src/news.ts` | Shared with clients, like the demo's `todos.ts`. |
 
@@ -27,8 +27,9 @@ npm run check && npm test
 DPI_PROVIDER=<a real provider> npm start
 ```
 
-There is no `faux` model here on purpose: `faux` is the demo app's provider, and a bare device refuses it. The tests
-borrow the demo's faux in `tests/helpers.ts` to create a session, which is the one place this app depends on the demo.
+`DPI_PROVIDER=faux` also works: the offline double is the device's (`apps/dpi-backend/src/faux.ts`), so every app on
+the device can run without a key. The demo app replaces it with a scripted superset, because its scripts name its own
+tools.
 
 Or point an existing device image at it without a rebuild:
 
@@ -40,15 +41,16 @@ DPI_PACK=/opt/durable-pi/apps/dpi-news-backend/src/pack.ts dpi-backend
 
 - **No GUI.** The playground shell is the demo's; a news pane would be the first capability-gated component. Until
   then the TUI and `curl` are the clients.
-- **No App State.** `SharedState` is demo-pack code, not device code, so a second pack cannot write the shared JSON
-  without importing or copying the demo. The digest writes only its own document. If a second app needs it, move
-  `shared-state.ts` into the device first.
 - **No routes.** The device's `/v1` surface plus the docs route is enough for a client to read this app.
-- **No model.** See above; the pack supplies `models()` only when it owns an offline one, as the demo does.
+- **No App State tools.** The store is the device's, so the digest writes `/news` through it, but `read_state` and
+  `update_state` are still the demo pack's tools. A generic pair in the device is the next step.
+- **No model of its own.** It uses the device's offline double, or the real provider you configure.
 
-## Two seams worth promoting before app #3
+## What the device now provides, because this app needed it
 
-1. `foldEvery` (the `checkpointWhen` policy) is written here and in the demo pack. It belongs next to `DevicePack` in
-   `apps/dpi-backend/src/pack.ts`, so a pack gets it with the interface.
-2. The offline `faux` model is the demo's, while the device is the thing that needs a test double. A third app would
-   copy it a second time.
+1. `foldEvery` (the `checkpointWhen` policy) is exported from `apps/dpi-backend/src/pack.ts` beside `DevicePack`, so a
+   pack gets the policy with the interface instead of writing its own.
+2. App State is the device's store: `createSession` hands each pack `appState`, and the device serves
+   `app.shared-state` whether or not a pack exists. A pack seeds only the keys it owns.
+3. The offline `faux` model is the device's (`apps/dpi-backend/src/faux.ts`), so this app's tests no longer reach into
+   the demo app for a provider.

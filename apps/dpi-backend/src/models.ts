@@ -20,7 +20,9 @@ export class Models {
   /** A provider this build ships: it is registered here, and its picker list is curated. */
   static async open(provider: ProviderId, defaultModel?: string): Promise<Models> {
     if (provider === "faux")
-      throw Error("faux is the demo app's model. Run the demo app (`just demo dev`), or set a real DPI_PROVIDER.");
+      throw Error(
+        "faux is the device's offline model, not a shipped provider: start a device binary (`just backend dev`) or a pack that supplies it, or set a real DPI_PROVIDER.",
+      );
     const engine = createModels();
     const built = providerFor(provider);
     const shortlist = curatedByProvider[provider];

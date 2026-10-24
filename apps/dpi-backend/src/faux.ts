@@ -1,5 +1,6 @@
-// The device's fake model: an echo reply and a slow one. Enough to prove the provider seam and drive a turn; the demo
-// app ships the scripted double (jobs, todos, spawning) and that one belongs to the demo, not the device.
+// The device's model double: an echo reply and a slow one. Enough to prove the provider seam and drive a turn, and
+// available to every app on the device (`DPI_PROVIDER=faux` on a bare device, `tests/helpers.ts` in a pack's suite).
+// The demo app ships the scripted superset — jobs, todos, spawning — because those names are the demo's tools.
 import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
 import {
   fauxAssistantMessage,
@@ -8,7 +9,7 @@ import {
   type FauxResponseFactory,
 } from "@earendil-works/pi-ai/providers/faux";
 import type { ModelInfo } from "../../dpi-sdk/src/api.js";
-import { Models } from "../src/models.js";
+import { Models } from "./models.js";
 
 export const faux = { provider: "faux", modelId: "echo" } as const;
 

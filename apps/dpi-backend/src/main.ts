@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { loadConfig } from "./config.js";
 import { Device } from "./device.js";
 import { Models } from "./models.js";
+import { fauxModels } from "./faux.js";
 import { EMPTY_PACK, type DevicePack } from "./pack.js";
 import { serve } from "./serve.js";
 
@@ -19,8 +20,12 @@ async function loadPack(path: string): Promise<DevicePack> {
 
 const config = loadConfig();
 const pack = config.pack ? await loadPack(config.pack) : EMPTY_PACK;
-// A pack may supply a provider this build does not ship (the demo app's faux model); otherwise the device's own.
-const models = config.provider === "faux" && pack.models ? await pack.models() : await Models.open(config.provider, config.defaultModel);
+// `faux` is the device's own offline double, and a pack may replace it with a scripted one (the demo's names its own
+// tools). Every other provider is one this build ships.
+const models =
+  config.provider === "faux"
+    ? await (pack.models?.() ?? fauxModels())
+    : await Models.open(config.provider, config.defaultModel);
 const device = await Device.open(
   {
     dataDir: config.dataDir,

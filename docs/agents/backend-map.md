@@ -4,7 +4,7 @@ Two apps, one device. Start here when you are looking for a file in the backend 
 
 ```
 apps/dpi-backend/          the device only
-apps/dpi-demo-backend/     the device + the playground pack (App State, todos, jobs, pager, prompt, /demo)
+apps/dpi-demo-backend/     the device + the playground pack (workspace doc, todos, jobs, pager, prompt, /demo)
 ```
 
 `dpi-backend` builds and runs on its own. `dpi-demo-backend` imports the device's `src/` directly (`../../dpi-backend/src/...`);
@@ -20,7 +20,7 @@ Deleting `apps/dpi-demo-backend` breaks only its own tests and the suites that b
 |---|---|---|
 | `docs` | conversation documents, in seeding order | `demo.workspace`, `demo.job-runs`, `demo.todos` |
 | `deviceDocs` | device-scoped documents | `app.shared-state` |
-| `open` / `close` | device-scoped stores the pack owns | opens `app-state.sqlite`, locks it, seeds it, tells the device to notify |
+| `open` / `close` | the pack's contribution to the device's stores | seeds the App State keys the pack owns; the device opens and locks `app-state.sqlite` and tells the change feed |
 | `createSession({ spawn })` | per-session extensions, in install order | the one `playground` extension (11 tools) |
 | `sessionExtensions` | custom extensions, installed unselected | `system-prompts`, `jev-damage-control` |
 | `routes(device)` | extra `/v1` routes, behind the token | `POST .../demo/state`, `.../demo/jobs`, `.../demo/jobs/:taskId/approval` |
@@ -59,7 +59,7 @@ src/faux.ts                  the deterministic offline model (DPI_PROVIDER=faux)
 src/playground/pack.ts       ...is the pack; this table is the rest of src/playground/
   playground.ts              the assembler: features in, the one `playground` extension out
   addons.ts                  system-prompts and jev-damage-control
-  shared-state.ts            App State: chord-replicated document + meta + receipts
+  features/app-state/        the workspace document the pack seeds from App State
   demo.ts                    the three /demo use cases (also used by its tests)
   features/                  app-state, todos, jobs, history, sessions, side-effects
   prompt.ts  history.ts  jev.ts

@@ -4,12 +4,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEVICE_CAPABILITIES } from "../../dpi-backend/src/device.js";
+import type { SharedState } from "../../dpi-backend/src/app-state.js";
 import type { SpawnSession } from "../../dpi-backend/src/spawn.js";
 import { NEWS_CAPABILITY, createNewsPack } from "../src/pack.js";
 
 const refuse = () => {
   throw Error("contract snapshot: this argument is only reached from inside execute()");
 };
+const appState = refuse as unknown as SharedState;
 
 test("contracts: the pack names itself, adds one document and advertises one capability", () => {
   const pack = createNewsPack();
@@ -23,7 +25,7 @@ test("contracts: the pack names itself, adds one document and advertises one cap
 
 test("contracts: one extension offers one tool and registers one task", () => {
   const installed = createNewsPack()
-    .createSession({ spawn: refuse as unknown as SpawnSession })
+    .createSession({ spawn: refuse as unknown as SpawnSession, appState })
     .install({ sessionId: "contract-session" });
   assert.deepEqual(installed.map((extension) => extension.name), ["news"]);
   assert.deepEqual(installed[0].tools?.map((tool) => tool.name), ["news"]);

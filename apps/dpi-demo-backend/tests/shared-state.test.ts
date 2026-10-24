@@ -26,7 +26,13 @@ test("Shared App State persists across reload and is current across forks and se
     await assert.rejects(() => t.pack.shared().change({ operation: "update", path: "", value: {} }, undefined, revision));
     await store.close();
     store = await t.open();
-    assert.deepEqual((await store.deviceDoc("app.shared-state")).value, { custom: { count: 4 } });
+    // The pack seeds the keys it owns on every open, so a missing one comes back: they are defaults, not records.
+    assert.deepEqual((await store.deviceDoc("app.shared-state")).value, {
+      goal: "Explore durable agents",
+      counter: 0,
+      notes: [],
+      custom: { count: 4 },
+    });
   } finally {
     await store.close();
     await t.cleanup();

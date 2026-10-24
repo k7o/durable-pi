@@ -5,7 +5,7 @@ import type { JsonValue } from "@earendil-works/chord";
 import type { ConversationDocToken } from "@earendil-works/pi-durable";
 import type { JobDef, JobInputValue, JobStepKind } from "../../../../../dpi-sdk/src/jobs.js";
 import type { TodoDigest, TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
-import type { SharedState } from "../../shared-state.js";
+import type { SharedState } from "../../../../../dpi-backend/src/app-state.js";
 
 export type Values = Record<string, JobInputValue>;
 export type Data = Record<string, JsonValue>;

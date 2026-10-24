@@ -7,7 +7,7 @@
 // tool call's receipt.
 import { defineDoc } from "@earendil-works/pi-durable";
 import { TODOS_DOC, type TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
-import { foldEvery } from "../../checkpoint.js";
+import { foldEvery } from "../../../../../dpi-backend/src/pack.js";
 
 export const Todos = defineDoc<TodosDoc>({
   kind: TODOS_DOC,

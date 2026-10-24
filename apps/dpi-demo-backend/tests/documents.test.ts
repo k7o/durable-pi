@@ -1,28 +1,28 @@
+// App State is the device's document now, so this opens a real device on the demo pack and reads it through the route
+// layer that serves it, rather than hand-building the document registry.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { Documents } from "../../dpi-backend/src/documents.js";
-import { createDemoPack } from "../src/playground/pack.js";
+import { faux, tempDevice } from "./helpers.js";
 
-test("documents: serves the pack's device document and refuses unknown kinds", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "dpi-documents-"));
-  const pack = createDemoPack({ offline: true });
-  await pack.open({ dataDir: dir, appStatePath: join(dir, "app-state.sqlite"), notify: () => {} });
+test("documents: serves the device's App State and refuses unknown kinds", async () => {
+  const t = await tempDevice();
+  const store = await t.open();
   try {
-    const documents = new Documents(pack);
-    const doc = await documents.deviceDoc("app.shared-state");
+    const doc = await store.documents.deviceDoc("app.shared-state");
     assert.deepEqual(doc.value, { goal: "Explore durable agents", counter: 0, notes: [] });
     assert.equal(typeof doc.revision, "number");
+    // The pack adds no device document of its own; App State is the device's, not the demo's.
+    assert.deepEqual(store.documents.deviceKinds, ["app.shared-state"]);
+    assert.deepEqual(t.pack.deviceDocs, undefined);
 
-    await assert.rejects(() => documents.deviceDoc("demo.nope"), /Unknown device document/);
+    await assert.rejects(() => store.documents.deviceDoc("demo.nope"), /Unknown device document/);
     await assert.rejects(
-      () => documents.agentDoc(null as never, null as never, "demo.nope"),
+      () => store.documents.agentDoc(null as never, null as never, "demo.nope"),
       /Unknown agent document/,
     );
+    void faux;
   } finally {
-    await pack.close();
-    await rm(dir, { recursive: true, force: true });
+    await store.close();
+    await t.cleanup();
   }
 });

@@ -1,3 +1,6 @@
+/** The device-scoped document every client reads at `GET /v1/docs/app.shared-state`. Namespaced like a pack's. */
+export const APP_STATE_DOC = "app.shared-state";
+
 export type JsonValue =
   | string
   | number

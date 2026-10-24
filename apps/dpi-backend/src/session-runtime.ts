@@ -27,6 +27,7 @@ import type { ChangeFeed } from "./changes.js";
 import type { Compaction } from "./compaction.js";
 import type { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
+import type { SharedState } from "./app-state.js";
 import { lockFile } from "./locks.js";
 import type { Models } from "./models.js";
 import type { DevicePack } from "./pack.js";
@@ -42,6 +43,8 @@ export interface SessionRuntimeOptions {
   changes: ChangeFeed;
   /** The product on this device: its documents, its extensions, and the session extensions it installs. */
   pack: DevicePack;
+  /** The device's App State, handed to each pack session so its tools can read and change it. */
+  appState: SharedState;
   documents: Documents;
   spawn: SpawnSession;
   archiveDir: string;
@@ -119,7 +122,7 @@ export class SessionRuntime {
       const registry = createRegistry();
       const coding = withWrites(CodingTools, CODING_WRITES);
       registry.install(coding);
-      const session = this.options.pack.createSession({ spawn: this.options.spawn });
+      const session = this.options.pack.createSession({ spawn: this.options.spawn, appState: this.options.appState });
       // The pack's extensions in install order: its tools first, then the agent's own system extensions.
       const installed = [coding, ...session.install({ sessionId: row.id })];
       for (const extension of installed) registry.install(extension);

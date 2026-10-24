@@ -49,6 +49,11 @@ test("news desk: a story is added, ranked, and summarised by a digest run", asyn
       { run: 1, open: 0, ranked: 1, top: "A durable story" },
     );
 
+    // The run also recorded itself in the device's App State, under the app's own key, so the two packs can share one
+    // document: the digest is the fact about the device, the list is the fact about the conversation.
+    const shared = await store.appState.snapshot();
+    assert.deepEqual(shared.value.news, { run: 1, at: doc.digest?.at, open: 0, ranked: 1, top: "A durable story" });
+
     // A second run counts up on the same document instead of starting over.
     await callTool(store, session.id, { action: "add", title: "A second story" });
     await callTool(store, session.id, { action: "digest" });

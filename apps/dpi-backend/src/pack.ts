@@ -1,12 +1,29 @@
-// The pack seam: what a device needs from the product built on it. The device owns boot, HTTP, sessions, agents and
-// durability; a pack owns the conversation documents, the extensions installed in a session and any extra routes.
-// Two packs exist — the empty one below and the demo app's — so this is one small interface, not a plugin framework.
+// The pack seam: what a device needs from the product built on it. The device owns boot, HTTP, sessions, agents,
+// durability and the stores every pack shares (App State); a pack owns the conversation documents, the extensions
+// installed in a session and any extra routes. Three packs exist — the empty one below, the demo app's and the news
+// app's — so this is one small interface, not a plugin framework.
 import type { Router } from "express";
+import type { CheckpointInfo } from "@earendil-works/pi-durable";
+import type { SharedState } from "./app-state.js";
 import type { Conversation, ConversationId, Extension, Harness, Tx } from "@earendil-works/pi-durable";
 import type { DeviceInfo, TaskNode } from "../../dpi-sdk/src/api.js";
 import type { Models } from "./models.js";
 import type { SpawnSession } from "./spawn.js";
 import type { Device } from "./device.js";
+
+/**
+ * Deltas a document keeps after its newest base before the next change is stored as a base. pi-durable 1.4.0 requires
+ * every `defineDoc` to answer this, and it is the only thing bounding what a read replays, so it lives here beside the
+ * interface rather than in each pack: 32 is small enough to keep replay short and large enough that a base, which
+ * copies the whole value, stays rare.
+ */
+export const FOLD_AFTER_DELTAS = 32;
+
+/** The `checkpointWhen` for a document on a device. */
+export const foldEvery =
+  (deltas = FOLD_AFTER_DELTAS) =>
+  (_value: unknown, _ops: unknown, info: CheckpointInfo) =>
+    info.deltasSinceBase >= deltas;
 
 /** A conversation document a pack adds: a new conversation seeds it, and `GET .../docs/:kind` reads it. */
 export interface ConversationDoc {
@@ -63,13 +80,14 @@ export interface DevicePack {
   /** Device-scoped documents; none in the device's default pack. */
   readonly deviceDocs?: readonly DeviceDoc[];
   /**
-   * Open device-scoped stores, once, before any session. `appStatePath` is where the device says its App State lives
-   * (`GET /v1/device` publishes it); a pack may ignore it. `notify` wakes the device's change feed.
+   * Run once, before any session, after the device has opened its own stores. `appState` is the device's App State:
+   * read and change it here (or in a tool) with `snapshot()` and `change()`, and `seed()` only the keys this pack owns,
+   * so two packs can share the document. `notify` wakes the device's change feed.
    */
-  open?(deps: { dataDir: string; appStatePath: string; notify: () => void }): Promise<void>;
+  open?(deps: { dataDir: string; appState: SharedState; notify: () => void }): Promise<void>;
   /** Release what `open` acquired. Safe to call twice. */
   close?(): Promise<void>;
-  createSession(deps: { spawn: SpawnSession }): PackSession;
+  createSession(deps: { spawn: SpawnSession; appState: SharedState }): PackSession;
   /**
    * The models this pack supplies when the device is asked for a provider the device itself does not ship, today
    * only `DPI_PROVIDER=faux`. Without it the device refuses that provider, so the demo app is the only place the

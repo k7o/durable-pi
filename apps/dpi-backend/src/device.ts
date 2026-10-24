@@ -29,7 +29,9 @@ import {
 import { lastAssistantText } from "../../dpi-sdk/src/transcript.js";
 import { Agents, type Resolved } from "./agents.js";
 import { Catalog, type SessionRow } from "./catalog.js";
+import { SharedState } from "./app-state.js";
 import { ChangeFeed } from "./changes.js";
+import { lockFile } from "./locks.js";
 import { Compaction } from "./compaction.js";
 import { Conversations } from "./conversations.js";
 import { Documents } from "./documents.js";
@@ -62,7 +64,9 @@ export class Device {
   readonly startedAt = Date.now();
   readonly uid: string;
   readonly conversations: Conversations;
+  appState!: SharedState;
   documents!: Documents;
+  private appStateUnlock?: () => void;
   sessions!: SessionRuntime;
   agentView!: Agents;
   agentExtensions!: ExtensionSelection;
@@ -105,19 +109,27 @@ export class Device {
     const { models } = resolved;
     const compaction = new Compaction(catalog, models);
     const device = new Device(resolved, catalog, changes, models, compaction, pack);
+    // One lock owns app-state.sqlite, for the same reason the catalog has one: two processes on one data dir would each
+    // write the same document and neither revision would mean anything.
+    device.appStateUnlock = lockFile(`${device.sharedStatePath}.lock`);
     try {
-      await pack.open?.({
-        dataDir: resolved.dataDir,
-        appStatePath: device.sharedStatePath,
-        notify: () => device.notify(),
-      });
-      device.documents = new Documents(pack);
+      try {
+        device.appState = await SharedState.open(device.sharedStatePath);
+      } catch (e) {
+        device.appStateUnlock();
+        device.appStateUnlock = undefined;
+        throw e;
+      }
+      device.appState.harness.subscribeCommits(() => device.notify());
+      await pack.open?.({ dataDir: resolved.dataDir, appState: device.appState, notify: () => device.notify() });
+      device.documents = new Documents(pack, device.appState);
       device.sessions = new SessionRuntime({
         catalog,
         models,
         compaction,
         changes,
         pack,
+        appState: device.appState,
         documents: device.documents,
         spawn: device.spawnSession,
         archiveDir: device.archiveDir,
@@ -361,6 +373,9 @@ export class Device {
   async close() {
     await this.sessions?.close();
     await this.pack.close?.();
+    await this.appState?.close();
+    this.appStateUnlock?.();
+    this.appStateUnlock = undefined;
     await this.catalog.close();
   }
 }

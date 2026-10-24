@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { Catalog, type SessionRow } from "../src/catalog.js";
 import { ChangeFeed } from "../src/changes.js";
 import { Compaction } from "../src/compaction.js";
-import { fauxModels } from "./faux.js";
+import { fauxModels } from "../src/faux.js";
 
 const row: SessionRow = {
   id: "s1",

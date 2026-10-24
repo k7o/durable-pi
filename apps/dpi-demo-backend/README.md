@@ -18,7 +18,7 @@ device does. `just backend dev` runs the bare device on the same port, so run on
 | | |
 |---|---|
 | **Conversation documents** | `demo.workspace`, `demo.job-runs`, `demo.todos` (`+ demo.todo-receipt`), seeded in that order |
-| **Device document** | `app.shared-state`, in `app-state.sqlite`, locked and seeded by the pack |
+| **Device document** | `app.shared-state`, in `app-state.sqlite`, opened, locked and served by the device; the pack seeds the keys it owns (`goal`, `counter`, `notes`) |
 | **Agent tools** | `read_state`, `update_state`, `todo`, `list_durable_jobs`, `run_durable_job`, `check_durable_job`, `search_history`, `ping_on_call_engineer`, `subagent`, `start_session`, `handoff` |
 | **Custom extensions** | `system-prompts` (a checklist of the prompts in `prompts/`) and `jev-damage-control` (Jev judges every bash command; off by default) |
 | **Durable jobs** | `workspace-snapshot`, `release-check`, `change-watch`, `todo-digest` |
