@@ -43,6 +43,11 @@ build: stage
 check:
     sbx kit validate ./sbx
 
+# The provider matrix `durable start` resolves, without a sandbox, an image or a key
+[no-cd]
+test:
+    bash sbx/scripts/durable.test.sh
+
 # Create a device sandbox on this checkout. The local-directory form makes sbx build the kit
 # itself, which avoids the question of whether a locally built image is in the runtime's image
 # store; `just kit push` is the path to an image an environment file can reference.

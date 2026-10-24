@@ -91,7 +91,9 @@ capabilities:
         # Every boot, including after a stop/start or a daemon restart. `durable start` is
         # idempotent: it rewrites ~/.dpi/backend.env (keeping the token), then starts the
         # backend only when nothing answers /healthz. Hook env is deny-by-default, so the
-        # variables the device needs are named here.
+        # variables the device needs are named here. DPI_PACK belongs in the list because it is
+        # how an environment file turns the demo pack off: an unlisted variable never reaches the
+        # hook, which would then always write the pack the image defaults to.
         - command: [/usr/local/bin/durable, start]
           user: agent
           background: true
@@ -101,6 +103,7 @@ capabilities:
             - DPI_MODEL
             - DPI_PORT
             - DPI_DEVICE_NAME
+            - DPI_PACK
             - OPENCODE_API_KEY
             - DEEPSEEK_API_KEY
           description: Start dpi-backend unless it is already answering

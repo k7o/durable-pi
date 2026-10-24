@@ -5,6 +5,7 @@
 #   durable attach   start, then hand the terminal to dpi-tui on a session in the workspace
 #   durable shell    start, then a login shell (no client)
 #   durable status   print how this device is configured and how to reach it
+#   durable pick     print the provider these environment variables resolve to, and nothing else
 #
 # `start` is the lifecycle startup hook and runs on every boot, so it has to converge: the
 # env file is rewritten each time (the token is the one thing it keeps), and the backend is
@@ -24,8 +25,25 @@ log() { printf '[durable] %s\n' "$*" >&2; }
 
 # The published port forwards to the container's eth0, so the backend cannot bind loopback
 # alone. 0.0.0.0 inside the sandbox VM is still sandbox-only until the host publishes the port.
+
+# The pack this device serves, if it has one. The image ships the demo pack and points at it by
+# default; `DPI_PACK=` (empty) in the sandbox's environment serves the bare device instead. The
+# provider choice depends on this, because `faux` is the pack's provider, not the device's.
+pack_path() {
+  local pack="${DPI_PACK-/opt/durable-pi/apps/dpi-demo-backend/src/pack.ts}"
+  if [ -n "$pack" ] && [ -f "$pack" ]; then printf '%s' "$pack"; fi
+}
+
 pick_provider() {
-  local want="${DPI_PROVIDER:-opencode-go}"
+  local want="${DPI_PROVIDER:-opencode-go}" pack
+  pack="$(pack_path)"
+  # A bare device refuses `DPI_PROVIDER=faux` at startup: faux is the demo app's provider. Asking
+  # for it without a pack falls through to a real provider, which boots with an empty model list
+  # and a warning, rather than to a backend that never answers /healthz.
+  if [ "$want" = faux ] && [ -z "$pack" ]; then
+    log "DPI_PROVIDER=faux needs a pack and this device has none; starting on a real provider instead"
+    want=opencode-go
+  fi
   case "$want" in
     faux) printf 'faux'; return ;;
     opencode | opencode-go)
@@ -35,14 +53,17 @@ pick_provider() {
       if [ -n "${DEEPSEEK_API_KEY:-}" ]; then printf 'deepseek'; return; fi
       ;;
   esac
-  # The requested provider has no key here. Use whichever key is bound before giving up on
-  # model access entirely: a device on faux still runs, it just answers deterministically.
+  # The requested provider has no key here. Use whichever key is bound, then faux if a pack can
+  # serve it, and otherwise boot on a real provider with no key: the backend warns and lists no
+  # models, which is diagnosable, where exiting is not.
   if [ -n "${OPENCODE_API_KEY:-}" ]; then
     printf 'opencode-go'
   elif [ -n "${DEEPSEEK_API_KEY:-}" ]; then
     printf 'deepseek'
-  else
+  elif [ -n "$pack" ]; then
     printf 'faux'
+  else
+    printf 'opencode-go'
   fi
 }
 
@@ -71,9 +92,10 @@ write_env() {
     printf 'DPI_HOST=0.0.0.0\n'
     printf 'DPI_START_DIRS=%s\n' "$start_dirs"
     # The sandbox is a demo device: dpi-backend loads the playground pack from apps/dpi-demo-backend.
-    # Set DPI_PACK= (empty) in the sandbox's environment to serve the bare device instead.
-    pack="${DPI_PACK-/opt/durable-pi/apps/dpi-demo-backend/src/pack.ts}"
-    if [ -n "$pack" ] && [ -f "$pack" ]; then printf 'DPI_PACK=%s\n' "$pack"; fi
+    # Set DPI_PACK= (empty) in the sandbox's environment to serve the bare device instead; the
+    # descriptor's startup hook names DPI_PACK, so the value reaches this script.
+    pack="$(pack_path)"
+    if [ -n "$pack" ]; then printf 'DPI_PACK=%s\n' "$pack"; fi
     printf 'DPI_PROVIDER=%s\n' "$provider"
     printf 'DPI_MODEL=%s\n' "$model"
     # Credentials reach the container as proxy sentinels; the real keys stay on the host.
@@ -185,6 +207,8 @@ attach() {
 case "${1:-attach}" in
   start) start ;;
   attach) attach ;;
+  # The provider this environment resolves to, without starting anything: what the test drives.
+  pick) pick_provider ;;
   shell)
     start
     cd "${WORKSPACE_DIR:-$HOME}"
@@ -195,7 +219,7 @@ case "${1:-attach}" in
     status
     ;;
   *)
-    printf 'usage: durable start|attach|shell|status\n' >&2
+    printf 'usage: durable start|attach|shell|status|pick\n' >&2
     exit 2
     ;;
 esac
