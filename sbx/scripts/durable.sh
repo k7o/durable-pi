@@ -6,13 +6,14 @@
 #   durable shell    start, then a login shell (no client)
 #   durable status   print how this device is configured and how to reach it
 #   durable pick     print the provider these environment variables resolve to, and nothing else
+#   durable pack     print the pack module this device serves, or nothing on a bare device
 #
 # `start` is the lifecycle startup hook and runs on every boot, so it has to converge: the
 # env file is rewritten each time (the token is the one thing it keeps), and the backend is
 # only launched when nothing answers /healthz.
 set -euo pipefail
 
-APP_DIR=/opt/durable-pi
+APP_DIR="${DPI_APP_DIR:-/opt/durable-pi}"
 DPI_HOME_DIR="${DPI_HOME:-$HOME/.dpi}"
 ENV_FILE="$DPI_HOME_DIR/backend.env"
 PID_FILE="$DPI_HOME_DIR/backend.pid"
@@ -26,12 +27,26 @@ log() { printf '[durable] %s\n' "$*" >&2; }
 # The published port forwards to the container's eth0, so the backend cannot bind loopback
 # alone. 0.0.0.0 inside the sandbox VM is still sandbox-only until the host publishes the port.
 
-# The pack this device serves, if it has one. The image ships the demo pack and points at it by
-# default; `DPI_PACK=` (empty) in the sandbox's environment serves the bare device instead. The
-# provider choice depends on this, because `faux` is the pack's provider, not the device's.
+# The pack this device serves, if it has one. The image ships both packs, so `DPI_PACK` names one:
+# `demo` (the default), `news`, or `bare`/empty for the device with no product on it. An absolute
+# path is taken as it stands, which is what an environment file writes and what the descriptor's
+# `pack` argument turns into — the names are a shorthand for the CLI, not a second contract.
+#
+# The provider choice depends on this, because `faux` is the pack's provider, not the device's.
 pack_path() {
-  local pack="${DPI_PACK-/opt/durable-pi/apps/dpi-demo-backend/src/pack.ts}"
-  if [ -n "$pack" ] && [ -f "$pack" ]; then printf '%s' "$pack"; fi
+  local want="${DPI_PACK-demo}" pack
+  case "$want" in
+    "") return ;;
+    bare | none) return ;;
+    demo) pack="$APP_DIR/apps/dpi-demo-backend/src/pack.ts" ;;
+    news) pack="$APP_DIR/apps/dpi-news-backend/src/pack.ts" ;;
+    *) pack="$want" ;;
+  esac
+  if [ -f "$pack" ]; then
+    printf '%s' "$pack"
+  else
+    log "DPI_PACK=$want names no pack in this image; this device serves none"
+  fi
 }
 
 pick_provider() {
@@ -91,9 +106,9 @@ write_env() {
     printf 'DPI_PORT=%s\n' "$PORT"
     printf 'DPI_HOST=0.0.0.0\n'
     printf 'DPI_START_DIRS=%s\n' "$start_dirs"
-    # The sandbox is a demo device: dpi-backend loads the playground pack from apps/dpi-demo-backend.
-    # Set DPI_PACK= (empty) in the sandbox's environment to serve the bare device instead; the
-    # descriptor's startup hook names DPI_PACK, so the value reaches this script.
+    # The pack this device serves, as a resolved path so the env file needs no re-resolution:
+    # demo by default, news if the descriptor's `pack` argument said so, and no line at all on a
+    # bare device. The startup hook names DPI_PACK, so the choice reaches this script.
     pack="$(pack_path)"
     if [ -n "$pack" ]; then printf 'DPI_PACK=%s\n' "$pack"; fi
     printf 'DPI_PROVIDER=%s\n' "$provider"
@@ -207,8 +222,10 @@ attach() {
 case "${1:-attach}" in
   start) start ;;
   attach) attach ;;
-  # The provider this environment resolves to, without starting anything: what the test drives.
+  # The provider and the pack this environment resolves to, without starting anything: what the
+  # test drives.
   pick) pick_provider ;;
+  pack) printf '%s\n' "$(pack_path)" ;;
   shell)
     start
     cd "${WORKSPACE_DIR:-$HOME}"
@@ -219,7 +236,7 @@ case "${1:-attach}" in
     status
     ;;
   *)
-    printf 'usage: durable start|attach|shell|status|pick\n' >&2
+    printf 'usage: durable start|attach|shell|status|pick|pack\n' >&2
     exit 2
     ;;
 esac

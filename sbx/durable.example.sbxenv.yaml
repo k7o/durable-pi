@@ -46,8 +46,9 @@ kits:
     #   model: deepseek-v4.1-flash
 
 # Provider selection for the device. It falls back on its own if the key for DPI_PROVIDER is not
-# bound in this sandbox, and starts on faux if no key is bound at all — faux comes from the demo
-# pack this image loads by default. Add `DPI_PACK: ""` to serve the bare device instead; the
+# bound in this sandbox, and starts on faux if no key is bound at all — faux comes from the device's
+# own double, and the demo pack's scripted one wins when that pack is loaded. Add `DPI_PACK: news`
+# to serve the news desk or `DPI_PACK: bare` (or "") for the device with no pack on it; the
 # descriptor's startup hook names DPI_PACK, so the value reaches the boot script.
 env:
   DPI_PROVIDER: opencode-go

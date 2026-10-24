@@ -26,6 +26,10 @@ args:
     default: deepseek-v4.1-flash
     description: Model a new session starts on
     env: DPI_MODEL
+  pack:
+    default: demo
+    description: Product this device serves — demo, news, or bare for no pack (a path also works)
+    env: DPI_PACK
 
 capabilities:
   # The device owns its runs. Without this a local sandbox stops shortly after its last client

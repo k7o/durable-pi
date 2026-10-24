@@ -52,9 +52,15 @@ test:
 # Create a device sandbox on this checkout. The local-directory form makes sbx build the kit
 # itself, which avoids the question of whether a locally built image is in the runtime's image
 # store; `just kit push` is the path to an image an environment file can reference.
-run name="durable-dev":
+#
+# `pack` picks which product the device serves, and only adds the flag when you name one, so a bare
+# `just kit run` is whatever the descriptor defaults to: `just kit run pack=news`,
+# `just kit run pack=bare`.
+run name="durable-dev" pack="":
     just kit stage
-    sbx run ./sbx --name {{name}}
+    extra=""
+    if [ -n "{{pack}}" ]; then extra="--arg pack={{pack}}"; fi
+    sbx run ./sbx --name {{name}} ${extra}
 
 # Publish the workload so `kits: [<ref>]` in an environment file resolves, then prove the
 # artifact is a kit and not an image. The default ref is the local HTTPS registry from

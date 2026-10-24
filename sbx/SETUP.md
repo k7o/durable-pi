@@ -23,8 +23,9 @@ Nothing on the host calls a model. Nothing in a sandbox holds a key.
 sessions, agents, durability) and both packs: the playground demo (`apps/dpi-demo-backend`: the
 workspace document, todos, the four durable jobs, the pager, the extra tools and the `/demo` routes)
 and the news desk (`apps/dpi-news-backend`: `news.stories`, the `news` tool, the digest run).
-`DPI_PACK` picks one **per device at boot**, so a sandbox is a demo device by default and a news
-device if its environment file points at `/opt/durable-pi/apps/dpi-news-backend/src/pack.ts`. A bare
+`DPI_PACK` picks one **per device at boot** as `demo` (the default), `news`, `bare`, or an absolute
+path to a pack module, so a sandbox is a demo device by default and a news device with
+`--arg pack=news` or `DPI_PACK: news` in its environment file. A bare
 device is `DPI_PACK: ""`; it keeps App State and `read_state`/`update_state` (every device has
 those) and loses both packs' tools and the demo's scripted faux model.
 
@@ -136,6 +137,10 @@ cd <checkout>
 just kit stage                              # sbx builds ./sbx itself, but the apps must be staged
 sbx run ./sbx --name device-a               # workspace = this directory; attaches to the device TUI
 ```
+
+The device serves the demo pack unless you say otherwise; `--arg pack=news` gives the news desk on
+the same image, and `--arg pack=bare` gives the device with no product on it. One pack per device
+either way, which is why there is no such thing as two packs on one sandbox.
 
 Find the port it published, declare that URL, and enroll:
 

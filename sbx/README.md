@@ -54,7 +54,8 @@ durable shell       # a login shell in the workspace
 ```
 
 The demo tools (`run_durable_job`, todo documents) come from the pack, not from
-the device: `DPI_PACK=` empty in the sandbox's environment serves the bare device. That switch
+the device: `DPI_PACK` is `demo`, `news`, `bare`, or a path to a pack module, and the descriptor
+exposes it as `--arg pack=…`, so one image serves either product or neither. That switch
 only works because the descriptor's startup hook lists `DPI_PACK` — hook env is deny-by-default,
 so an unlisted variable never reaches `durable start`. `just kit test` covers the provider matrix
 that follows from it.
