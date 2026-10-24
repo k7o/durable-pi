@@ -13,7 +13,7 @@ import {
   Wrench,
 } from "lucide-vue-next";
 import type { TaskNode, TaskOutcome } from "@sdk/api";
-import { jobRunDone } from "@sdk/jobs";
+import { jobRunDone } from "@sdk/packs/demo-jobs";
 import { message } from "../client/hub";
 import { agentHandle, sessionHandle, tasks } from "../client/store";
 import { decide, jobDef, jobDefs, jobRuns, openAgent, pending, revealRun, startJob } from "../client/jobs";

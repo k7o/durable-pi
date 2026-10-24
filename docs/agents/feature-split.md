@@ -274,7 +274,7 @@ Accepted, fixed afterwards:
 - **`features/jobs/` imported `features/todos/doc.js`** (`types.ts` for the `TodosDoc`/`TodoDigest` types,
   `phase.ts` for the `Todos` token), which the acceptance criteria above rule out (TS-702). The cause was
   `Phase.todos()`/`saveTodoDigest()`: the digest job has to read the list the `todo` tool edits. Paid by
-  moving the document's *shape* to its wire owner, `dpi-sdk/src/todos.ts` (TS-104, the reason the client can
+  moving the document's *shape* to its wire owner, `dpi-sdk/src/packs/demo-todos.ts` (TS-104, the reason the client can
   read it without importing backend code), and injecting the *token* through `JobsDeps.todos`, which
   `session-runtime.ts` supplies. `features/jobs/` now imports no sibling feature in either direction, and
   `Phase` still describes everything a handler may do.

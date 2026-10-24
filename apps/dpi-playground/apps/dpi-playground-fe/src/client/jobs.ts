@@ -1,7 +1,8 @@
 // Durable jobs in the web client: the device's job definitions, this agent's runs (the `demo.job-runs`
 // document), and the actions a run card or the Tasks tab can take.
 import { computed, ref } from "vue";
-import { JOB_RUNS_DOC, type JobDef, type JobRun, type JobRunsDoc } from "@sdk/jobs";
+import type { JobDef } from "@sdk/api";
+import { JOB_RUNS_DOC, type JobRun, type JobRunsDoc } from "@sdk/packs/demo-jobs";
 import {
   agentHandle,
   agentState,

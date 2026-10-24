@@ -18,7 +18,7 @@ import {
   Wrench,
   X,
 } from "lucide-vue-next";
-import { jobRunDone, type JobPhaseRun, type JobRun, type JobStep } from "@sdk/jobs";
+import { jobRunDone, type JobPhaseRun, type JobRun, type JobStep } from "@sdk/packs/demo-jobs";
 import { decide, jobDef, now, openAgent, pending, seconds, stopRun } from "../client/jobs";
 
 const props = defineProps<{ run: JobRun }>();

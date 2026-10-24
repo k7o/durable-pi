@@ -6,7 +6,7 @@
 // the same shared document as the demo without importing the demo.
 import { defineTask } from "@earendil-works/pi-durable";
 import type { AppStateStore } from "../../dpi-backend/src/pack-api.js";
-import type { StoryDigest } from "../../dpi-sdk/src/news.js";
+import type { StoryDigest } from "../../dpi-sdk/src/packs/news.js";
 import { Stories } from "./stories.js";
 
 export type DigestResult = { run: number; open: number; ranked: number; top?: string };

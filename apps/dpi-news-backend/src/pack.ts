@@ -13,7 +13,7 @@ import {
   type ConversationDoc,
   type DevicePack,
 } from "../../dpi-backend/src/pack-api.js";
-import { STORIES_DOC, type StoriesDoc } from "../../dpi-sdk/src/news.js";
+import { STORIES_DOC, type StoriesDoc } from "../../dpi-sdk/src/packs/news.js";
 import { createNewsDigest } from "./digest.js";
 import { Stories } from "./stories.js";
 import { createNewsTool } from "./tool.js";

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import type { JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
-import type { TodosDoc } from "../../dpi-sdk/src/todos.js";
+import type { JobRunsDoc } from "../../dpi-sdk/src/packs/demo-jobs.js";
+import type { TodosDoc } from "../../dpi-sdk/src/packs/demo-todos.js";
 import { DpiClient } from "../../dpi-sdk/src/client.js";
 import { DpiError } from "../../dpi-sdk/src/errors.js";
 import { bootServer, faux, newToken, tempDevice, until } from "./helpers.js";

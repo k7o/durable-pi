@@ -4,7 +4,7 @@ import type { Context } from "@earendil-works/chord";
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { writing } from "../../../../../dpi-backend/src/pack-api.js";
-import { jobRunDone, type JobRun } from "../../../../../dpi-sdk/src/jobs.js";
+import { jobRunDone, type JobRun } from "../../../../../dpi-sdk/src/packs/demo-jobs.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
 import type { Feature } from "../feature.js";
 import { pause } from "../pause.js";

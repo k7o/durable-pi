@@ -17,7 +17,7 @@ The point to keep in mind while reading: `apps/dpi-backend` is the device and kn
 | File | What changed |
 |---|---|
 | `apps/dpi-demo-backend/src/playground/features/todos/doc.ts` | New. Defines `Todos` with `defineDoc`, and `TodoReceipt`, the task-scoped receipt the replay guard reads. |
-| `apps/dpi-sdk/src/todos.ts` | New. `TODOS_DOC`, `TodoItem`, `TodoDigest` and `TodosDoc`, in the SDK because the client reads the same JSON the pack writes. |
+| `apps/dpi-sdk/src/packs/demo-todos.ts` | New. `TODOS_DOC`, `TodoItem`, `TodoDigest` and `TodosDoc`, in the SDK because the client reads the same JSON the pack writes. |
 | `apps/dpi-demo-backend/src/playground/features/todos/tools.ts` | New. The `todo` tool, and the `todos()` feature that publishes it. |
 | `apps/dpi-demo-backend/src/playground/prompt.ts` | One added sentence in the system prompt, and the `TOOL_DESCRIPTIONS.todo` entry. |
 | `apps/dpi-demo-backend/src/playground/features/jobs/todo-digest.ts` | New. The `todo-digest` job definition and its one phase. |
@@ -33,7 +33,7 @@ The point to keep in mind while reading: `apps/dpi-backend` is the device and kn
 
 The shape is in the SDK, because the client reads the same JSON the pack writes:
 
-`apps/dpi-sdk/src/todos.ts`
+`apps/dpi-sdk/src/packs/demo-todos.ts`
 
 ```ts
 export const TODOS_DOC = "demo.todos";
@@ -296,7 +296,7 @@ Both are part of `npm test`.
 
 ## Extending it
 
-- Add a `priority` field in `apps/dpi-sdk/src/todos.ts`, a tool argument in `apps/dpi-demo-backend/src/playground/features/todos/tools.ts`, and a sort in the digest phase. The types are shared with the client, so the compiler points at every place that needs the field.
+- Add a `priority` field in `apps/dpi-sdk/src/packs/demo-todos.ts`, a tool argument in `apps/dpi-demo-backend/src/playground/features/todos/tools.ts`, and a sort in the digest phase. The types are shared with the client, so the compiler points at every place that needs the field.
 - Add a `todo-archive` job with two phases: write an archive to App State, then remove completed items in a checkpointed second phase. Aborting it demonstrates bottom-up task cancellation.
 - Add a hook in a new extension that blocks `todo` `remove` while a `demo.frozen` document is set. Hooks receive tool calls before they run; see `addons.ts` for a `beforeTool` example.
 - Add the list to the web UI next to `StateEditor.vue` by reading `demo.todos` through the existing docs endpoint.
@@ -317,7 +317,7 @@ has to change:
    list, and the `todos()` and `saveTodoDigest()` helpers in
    `apps/dpi-demo-backend/src/playground/features/jobs/phase.ts`.
 3. Delete the `todo` entry from `prompt.ts` and from the tool list in `playground.ts`.
-4. Delete `apps/dpi-sdk/src/todos.ts`, the `demo.todos` entry in `composables.ts`, and the faux commands.
+4. Delete `apps/dpi-sdk/src/packs/demo-todos.ts`, the `demo.todos` entry in `composables.ts`, and the faux commands.
 
 Reverting the two original commits and re-resolving the move reaches the same place, with more work.
 

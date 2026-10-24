@@ -4,8 +4,9 @@
 import type { JsonValue } from "@earendil-works/chord";
 import type { ConversationDocToken } from "@earendil-works/pi-durable";
 import type { AppStateStore } from "../../../../../dpi-backend/src/pack-api.js";
-import type { JobDef, JobInputValue, JobStepKind } from "../../../../../dpi-sdk/src/jobs.js";
-import type { TodoDigest, TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
+import type { JobDef, JobInputValue } from "../../../../../dpi-sdk/src/api.js";
+import type { JobStepKind } from "../../../../../dpi-sdk/src/packs/demo-jobs.js";
+import type { TodoDigest, TodosDoc } from "../../../../../dpi-sdk/src/packs/demo-todos.js";
 
 export type Values = Record<string, JobInputValue>;
 export type Data = Record<string, JsonValue>;

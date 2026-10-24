@@ -1,5 +1,5 @@
 // Snapshot, measure and save one folder. Four fixed phases, no approval, no repeats.
-import type { JobDef } from "../../../../../dpi-sdk/src/jobs.js";
+import { JobDef } from "../../../../../dpi-sdk/src/api.js";
 import { RESULT_ROOT, inDir, label } from "./shared.js";
 import type { Handler, JobModule } from "./types.js";
 

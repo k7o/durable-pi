@@ -5,7 +5,6 @@
 // The Wire* event types below copy their JSON shape; apps/dpi-backend/src/contract-check.ts
 // fails the build if pi-durable's own types stop fitting them.
 
-import type { JobDef } from "./jobs.js";
 
 export const API_VERSION = 1 as const;
 
@@ -54,6 +53,42 @@ export interface ModelInfo {
   reasoning: boolean;
   cost: { input: number; output: number };
 }
+
+// What a device advertises about the work it can run: a pack contributes these through `info()`, and a client shows
+// them as things to start. The run record a pack writes is that pack's own wire type (`packs/demo-jobs.ts` for the
+// demo's `demo.job-runs`), because a device that runs nothing still has `jobs: undefined`.
+export type JobInputValue = string | number | boolean;
+
+export type JobInputSpec = {
+  name: string;
+  type: "string" | "integer";
+  description: string;
+  default: JobInputValue;
+  min?: number;
+  max?: number;
+};
+
+export type JobPhaseSpec = {
+  id: string;
+  label: string;
+  summary: string;
+  /** `approval` phases wait for a person's decision; `repeat` phases save one checkpoint per iteration. */
+  kind?: "approval" | "repeat";
+};
+
+export type JobDef = {
+  id: string;
+  title: string;
+  summary: string;
+  phases: JobPhaseSpec[];
+  inputs: JobInputSpec[];
+  /** The run pauses in an approval phase until a person approves or declines. */
+  approval: boolean;
+  /** App State path where every run saves its result. */
+  resultPath: string;
+  /** Typical run time in seconds, without the approval wait. */
+  seconds: number;
+};
 
 export interface DeviceInfo {
   uid: string;

@@ -1,41 +1,14 @@
-// Durable jobs: repeatable workflows. Each run is one pi-durable task whose checkpoint phases are the job's named
-// phases. The run's record lives in the conversation document `demo.job-runs`, so every client renders the same
-// phases, steps and approval, live and after a restart. Types are aliases (not interfaces) so they stay JSON documents.
+// The demo pack's job runs, as clients read them: the conversation document `demo.job-runs`, so a shell renders the
+// same phases, steps and approval that the pack wrote, live and after a restart. Types are aliases (not interfaces) so
+// they stay JSON documents.
+//
+// This file belongs to the demo pack: `demo-jobs`, `demo-todos` and `news` in this directory are each one product's wire
+// types, kept next to the device contract so a client can read them without importing the pack. What a device
+// *advertises* about jobs is not here — `JobDef` and its inputs are in `api.ts`, because `/v1/device` carries them.
+
+import type { JobInputValue } from "../api.js";
 
 export const JOB_RUNS_DOC = "demo.job-runs";
-
-export type JobInputValue = string | number | boolean;
-
-export type JobInputSpec = {
-  name: string;
-  type: "string" | "integer";
-  description: string;
-  default: JobInputValue;
-  min?: number;
-  max?: number;
-};
-
-export type JobPhaseSpec = {
-  id: string;
-  label: string;
-  summary: string;
-  /** `approval` phases wait for a person's decision; `repeat` phases save one checkpoint per iteration. */
-  kind?: "approval" | "repeat";
-};
-
-export type JobDef = {
-  id: string;
-  title: string;
-  summary: string;
-  phases: JobPhaseSpec[];
-  inputs: JobInputSpec[];
-  /** The run pauses in an approval phase until a person approves or declines. */
-  approval: boolean;
-  /** App State path where every run saves its result. */
-  resultPath: string;
-  /** Typical run time in seconds, without the approval wait. */
-  seconds: number;
-};
 
 export type JobStepKind = "command" | "tool" | "agent" | "state" | "approval" | "checkpoint" | "note";
 export type JobStepStatus = "running" | "done" | "error" | "waiting";

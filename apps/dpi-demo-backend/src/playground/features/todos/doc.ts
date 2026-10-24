@@ -1,13 +1,13 @@
 // The experiment's conversation document: one durable todo list per conversation.
 //
-// The shape lives in the SDK (`dpi-sdk/src/todos.ts`) because clients read it too; this file only defines the
+// The shape lives in the SDK (`dpi-sdk/src/packs/demo-todos.ts`) because clients read it too; this file only defines the
 // document. The agent edits it through the `todo` tool (tools.ts), a one-phase job summarises it
 // (../jobs/todo-digest.ts), and the web UI can read it from GET /sessions/:s/docs/demo.todos. It lives in the
 // conversation, so a fork decides what to copy (`fork: "asOf"`) and every edit is part of the same commit as the
 // tool call's receipt.
 import { defineDoc } from "@earendil-works/pi-durable";
 import { foldEvery } from "../../../../../dpi-backend/src/pack-api.js";
-import { TODOS_DOC, type TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
+import { TODOS_DOC, type TodosDoc } from "../../../../../dpi-sdk/src/packs/demo-todos.js";
 
 export const Todos = defineDoc<TodosDoc>({
   kind: TODOS_DOC,

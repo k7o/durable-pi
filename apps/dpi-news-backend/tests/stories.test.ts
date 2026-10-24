@@ -2,7 +2,7 @@
 // digest run that commits its summary onto the same document.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { STORIES_DOC, type StoriesDoc } from "../../dpi-sdk/src/news.js";
+import { STORIES_DOC, type StoriesDoc } from "../../dpi-sdk/src/packs/news.js";
 import type { Device } from "../../dpi-backend/src/device.js";
 import { callTool, faux, tempDevice, until } from "./helpers.js";
 

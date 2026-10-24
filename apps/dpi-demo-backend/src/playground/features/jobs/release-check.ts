@@ -1,5 +1,5 @@
 // Plan, gather with a subagent, wait for a person's approval, publish and verify.
-import type { JobDef } from "../../../../../dpi-sdk/src/jobs.js";
+import { JobDef } from "../../../../../dpi-sdk/src/api.js";
 import { RESULT_ROOT, clip } from "./shared.js";
 import type { Handler, JobModule } from "./types.js";
 

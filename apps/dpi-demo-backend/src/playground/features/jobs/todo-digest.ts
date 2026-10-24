@@ -1,5 +1,5 @@
 // One phase: read this conversation's todo list, then save the digest to App State and the list.
-import type { JobDef } from "../../../../../dpi-sdk/src/jobs.js";
+import { JobDef } from "../../../../../dpi-sdk/src/api.js";
 import { RESULT_ROOT } from "./shared.js";
 import type { Handler, JobModule } from "./types.js";
 

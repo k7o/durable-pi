@@ -55,7 +55,7 @@ Every agent gets the coding tools `read`, `write`, `edit` and `bash`, the device
 
 ## Durable jobs
 
-A durable job is a repeatable workflow with named phases. Each run is one pi-durable task (`demo.job.<id>`) whose checkpoint phases are the job's phases, so a restart resumes the current phase. The run's record, with every phase and step (commands, a subagent's tool calls, App State writes, checkpoints, the approval), is the conversation document `demo.job-runs`; types are in [`../dpi-sdk/src/jobs.ts`](../dpi-sdk/src/jobs.ts). Every run saves its result to App State under `/jobs/<id>`.
+A durable job is a repeatable workflow with named phases. Each run is one pi-durable task (`demo.job.<id>`) whose checkpoint phases are the job's phases, so a restart resumes the current phase. The run's record, with every phase and step (commands, a subagent's tool calls, App State writes, checkpoints, the approval), is the conversation document `demo.job-runs`; types are in [`../dpi-sdk/src/packs/demo-jobs.ts`](../dpi-sdk/src/packs/demo-jobs.ts). Every run saves its result to App State under `/jobs/<id>`.
 
 | Job | Phases | Inputs |
 |---|---|---|

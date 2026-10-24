@@ -2,7 +2,7 @@
 // task and its record cannot disagree. The phase runtime it dispatches into is runtime.ts.
 import type { Context } from "@earendil-works/chord";
 import { defineTask, type ConversationId, type TaskId, type Tx } from "@earendil-works/pi-durable";
-import type { JobDef } from "../../../../../dpi-sdk/src/jobs.js";
+import { JobDef } from "../../../../../dpi-sdk/src/api.js";
 import { Approval } from "./approval.js";
 import { JOB_DEFS } from "./defs.js";
 import { JobRuns, endRun, runOf, type Checkpoint, type JobInput, type JobResult, type Run, type Running } from "./record.js";

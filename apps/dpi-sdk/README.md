@@ -4,17 +4,24 @@ The shared contract of the Durable Agent Network. Every client in this repo (the
 
 The apps import it by relative path (`../../dpi-sdk/src/client.ts`, or `@sdk/*` in the Vite client). It is not published to npm.
 
+`src/` is the device's contract and `src/packs/` is each product's wire types, and the two are kept apart on purpose: a
+file in `src/` never imports from `src/packs/`, and a pack never imports another pack (`tests/layout.test.ts` fails the
+build on either). That is why one package carries two products' types without the contract depending on either — and why
+splitting into a package per pack is a distribution decision (for a pack outside this repo), not an organisational one.
+
 ## Layout
 
 | File | Exports |
 |---|---|
-| `src/api.ts` | The v1 wire contract: `DeviceInfo`, `DeviceTree`, `SessionSummary`, `AgentSummary`, `AgentDetail`, `SendResult`, `TaskNode`, `WireEntry`, the stream `Frame` and the hub's `MuxFrame`, `API_VERSION`, `THINKING_LEVELS` and the compaction defaults and helpers |
+| `src/api.ts` | The v1 wire contract, including the job definitions a device advertises (`JobDef`): `DeviceInfo`, `DeviceTree`, `SessionSummary`, `AgentSummary`, `AgentDetail`, `SendResult`, `TaskNode`, `WireEntry`, the stream `Frame` and the hub's `MuxFrame`, `API_VERSION`, `THINKING_LEVELS` and the compaction defaults and helpers |
 | `src/client.ts` | `DpiClient` (device, tree, dirs, sessions, createSession, device docs and events, plus raw `request` and `stream`), `SessionHandle` (get, rename, archive, agents, createAgent, tasks, abortTask, inspect, compaction, setCompaction, submission, events), `AgentHandle` (get, rename, `send` with a `whenBusy` of follow-up, steer or reject, withdraw, abort, fork, config, configure, compact, reset, entries, transcript, doc, extensions, setExtension, demo for App State edits and job runs, events) and `follow()`, which keeps a stream open with backoff |
 | `src/sse.ts` | `readSse()`, a fetch-based SSE reader that works in browsers and Node |
 | `src/models.ts` | Reducers that turn frames into view state: `AgentModel` (transcript items, live tools, inbox, usage), `SessionModel` (agents, tasks, lineage) and `NetworkModel` with `networkTree()` |
 | `src/transcript.ts` | `toTranscript()` (the items both clients render), `toMarkdown()`, `sumUsage()` and message text helpers |
 | `src/app-state.ts` | App State paths and changes: `readState()`, `changeState()`, `replaceState()` |
-| `src/jobs.ts` | Durable job definitions and run records (`JobDef`, `JobRun`, the `demo.job-runs` document) |
+| `src/packs/demo-jobs.ts` | The demo pack's job run record (`JobRun`, `JobRunsDoc`, the `demo.job-runs` document) |
+| `src/packs/demo-todos.ts` | The demo pack's todo list (`TODOS_DOC`, `TodoItem`, `TodosDoc`) |
+| `src/packs/news.ts` | The news pack's story list (`STORIES_DOC`, `Story`, `StoriesDoc`) |
 | `src/errors.ts` | `DpiError` with the API error code, and `isDpiError()` |
 | `src/node/registry.ts` | `NetworkRegistry`: the client-side device registry in `~/.dpi/network.sqlite` (URLs, tokens, live status, UI state), and `toPublic()`, the token-free view the hub serves |
 | `src/node/config.ts` | Parses `dpi-network.yaml` (found by walking up from the working directory, or `DPI_NETWORK_FILE`) and syncs it into the registry |

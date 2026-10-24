@@ -1,7 +1,7 @@
 // The job catalogue: JOB_DEFS in its fixed order, one module per job, the handler map the runtime dispatches into,
 // and the input validation the tools and the HTTP route share. The order is contract: run records and the
 // demo.job-runs document store job and phase ids, the contract test pins both, and a reorder is a prompt change.
-import type { JobDef } from "../../../../../dpi-sdk/src/jobs.js";
+import { JobDef } from "../../../../../dpi-sdk/src/api.js";
 import { changeWatch } from "./change-watch.js";
 import { releaseCheck } from "./release-check.js";
 import { todoDigest } from "./todo-digest.js";

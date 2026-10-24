@@ -21,8 +21,8 @@ import {
   type SpawnSession,
 } from "../../../dpi-backend/src/pack-api.js";
 import type { AppState } from "../../../dpi-sdk/src/app-state.js";
-import { JOB_RUNS_DOC } from "../../../dpi-sdk/src/jobs.js";
-import { TODOS_DOC } from "../../../dpi-sdk/src/todos.js";
+import { JOB_RUNS_DOC } from "../../../dpi-sdk/src/packs/demo-jobs.js";
+import { TODOS_DOC } from "../../../dpi-sdk/src/packs/demo-todos.js";
 import { ADDON_INFO, PromptChecklist, PROMPTS, createAddons } from "./addons.js";
 import { DemoEndpoints } from "./demo.js";
 import { WORKSPACE_DOC, Workspace } from "./features/app-state/doc.js";

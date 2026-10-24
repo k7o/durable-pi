@@ -15,7 +15,7 @@
 // or note.
 import { defineDoc, type ConversationId, type RunningTask, type TaskId, type TaskRuntime, type Tx } from "@earendil-works/pi-durable";
 import { foldEvery } from "../../../../../dpi-backend/src/pack-api.js";
-import { JOB_RUNS_DOC, type JobPhaseRun, type JobRun, type JobRunsDoc, type JobStep } from "../../../../../dpi-sdk/src/jobs.js";
+import { JOB_RUNS_DOC, type JobPhaseRun, type JobRun, type JobRunsDoc, type JobStep } from "../../../../../dpi-sdk/src/packs/demo-jobs.js";
 import type { Data, Values } from "./types.js";
 
 export const JobRuns = defineDoc<JobRunsDoc>({

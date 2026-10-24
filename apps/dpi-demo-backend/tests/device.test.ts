@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import type { Device } from "../../dpi-backend/src/device.js";
-import { JOB_RUNS_DOC, type JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
+import { JOB_RUNS_DOC, type JobRunsDoc } from "../../dpi-sdk/src/packs/demo-jobs.js";
 import type { DemoPack } from "../src/playground/pack.js";
 import { faux, tempDevice, until } from "./helpers.js";
 

@@ -13,7 +13,7 @@ app actually cost? — and the answer is this directory.
 | Tool `news` | `src/tool.ts` | `add`, `list`, `rank`, `digest`. Every action commits its edit and its receipt together. |
 | Task `news.digest` | `src/digest.ts` | One phase, one commit, one outcome. Started by the tool, runs in the background, and records the last run in App State under `/news`. |
 | Pack | `src/pack.ts` | One document, one extension, one capability (`news`). Default export for `DPI_PACK`; imports the device through its `pack-api.ts` only. |
-| Wire types | `apps/dpi-sdk/src/news.ts` | Shared with clients, like the demo's `todos.ts`. |
+| Wire types | `apps/dpi-sdk/src/packs/news.ts` | Shared with clients, like the demo's `packs/demo-todos.ts`. |
 
 Nothing in `apps/dpi-backend` changes. The device seeds the pack's document list, serves it at
 `GET /v1/sessions/:s/agents/:a/docs/news.stories`, and installs the extension in every session.

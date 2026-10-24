@@ -1,5 +1,5 @@
-// The news desk as clients read it: one durable story list per conversation, served at `news.stories`, plus the last
-// digest a run wrote onto it. Types are aliases (not interfaces) so they stay JSON documents. The document itself is
+// The news pack's story list, as clients read it: one durable story list per conversation, served at
+// `news.stories`, plus the last digest a run wrote onto it. Belongs to the news pack; see `demo-jobs.ts` for the rule. Types are aliases (not interfaces) so they stay JSON documents. The document itself is
 // defined next to the tool that edits it (`apps/dpi-news-backend/src/stories.ts`).
 
 export const STORIES_DOC = "news.stories";
