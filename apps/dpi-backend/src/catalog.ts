@@ -10,6 +10,9 @@ import type { ChangeFeed } from "./changes.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { lockFile } from "./locks.js";
 
+/** How long a stored idempotency response answers a repeated key. */
+const IDEMPOTENCY_TTL_MS = 24 * 3600_000;
+
 export type SessionRow = {
   id: string;
   name: string;
@@ -36,7 +39,7 @@ export class Catalog {
     this.deviceUid = uid?.value ?? randomUUID();
     if (!uid) db.prepare("INSERT INTO meta(key,value) VALUES('device_uid',?)").run(this.deviceUid);
     // Idempotency keys live at least 24h.
-    db.prepare("DELETE FROM requests WHERE createdAt < ?").run(Date.now() - 24 * 3600_000);
+    db.prepare("DELETE FROM requests WHERE createdAt < ?").run(Date.now() - IDEMPOTENCY_TTL_MS);
   }
 
   static async open(dataDir: string, changes: ChangeFeed): Promise<Catalog> {
@@ -164,10 +167,16 @@ export class Catalog {
 
   replay(key: string, route: string): { status: number; body: unknown } | undefined {
     const row = this.db.prepare("SELECT * FROM requests WHERE key=?").get(key) as
-      | { route: string; status: number; body: string }
+      | { route: string; status: number; body: string; createdAt: number }
       | undefined;
     if (!row) return undefined;
     if (row.route !== route) throw invalid("Idempotency-Key was already used for a different request");
+    // The purge at open is not enough for a device that stays up: a key that aged out mid-flight is forgotten
+    // here, and dropped so its row cannot shadow the fresh response `remember` is about to store.
+    if (Date.now() - row.createdAt > IDEMPOTENCY_TTL_MS) {
+      this.db.prepare("DELETE FROM requests WHERE key=?").run(key);
+      return undefined;
+    }
     return { status: row.status, body: JSON.parse(row.body) as unknown };
   }
 

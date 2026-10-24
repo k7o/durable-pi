@@ -153,6 +153,28 @@ test("catalog: replays a stored response only for the same route", async () => {
   }
 });
 
+test("catalog: a key that ages out while the device stays up stops replaying", async () => {
+  const t = await tempCatalog();
+  try {
+    const catalog = await Catalog.open(t.dir, t.changes);
+    catalog.remember("k1", "POST /v1/sessions", 201, { id: "s1" });
+
+    // Age the row without reopening: the purge at open never runs on a device that has been up for days.
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(join(t.dir, "catalog.sqlite"));
+    db.prepare("UPDATE requests SET createdAt=? WHERE key=?").run(Date.now() - 24 * 3600_000 - 1, "k1");
+    db.close();
+
+    assert.equal(catalog.replay("k1", "POST /v1/sessions"), undefined);
+    // The aged-out row must not shadow the retry: the same key stores its new response again.
+    catalog.remember("k1", "POST /v1/sessions", 201, { id: "s2" });
+    assert.deepEqual(catalog.replay("k1", "POST /v1/sessions"), { status: 201, body: { id: "s2" } });
+    await catalog.close();
+  } finally {
+    await t.cleanup();
+  }
+});
+
 test("catalog: records which tool call started a session", async () => {
   const t = await tempCatalog();
   try {
