@@ -3,9 +3,8 @@
 // installed in a session and any extra routes. Three packs exist — the empty one below, the demo app's and the news
 // app's — so this is one small interface, not a plugin framework.
 import type { Router } from "express";
-import type { CheckpointInfo } from "@earendil-works/pi-durable";
+import type { CheckpointInfo, Conversation, ConversationId, Extension, Harness, Tx } from "@earendil-works/pi-durable";
 import type { SharedState } from "./app-state.js";
-import type { Conversation, ConversationId, Extension, Harness, Tx } from "@earendil-works/pi-durable";
 import type { DeviceInfo, TaskNode } from "../../dpi-sdk/src/api.js";
 import type { Models } from "./models.js";
 import type { SpawnSession } from "./spawn.js";

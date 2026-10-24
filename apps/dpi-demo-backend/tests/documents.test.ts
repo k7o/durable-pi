@@ -2,7 +2,7 @@
 // layer that serves it, rather than hand-building the document registry.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { faux, tempDevice } from "./helpers.js";
+import { tempDevice } from "./helpers.js";
 
 test("documents: serves the device's App State and refuses unknown kinds", async () => {
   const t = await tempDevice();
@@ -20,7 +20,6 @@ test("documents: serves the device's App State and refuses unknown kinds", async
       () => store.documents.agentDoc(null as never, null as never, "demo.nope"),
       /Unknown agent document/,
     );
-    void faux;
   } finally {
     await store.close();
     await t.cleanup();
