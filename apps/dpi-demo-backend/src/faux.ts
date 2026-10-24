@@ -53,7 +53,7 @@ const textOf = (m?: AnyMessage) =>
       ? (m!.content as { type: string; text?: string }[]).map((b) => (b.type === "text" ? (b.text ?? "") : "")).join("")
       : "";
 
-export function installFaux(models: MutableModels) {
+function installFaux(models: MutableModels) {
   const handle = fauxProvider({
     provider: "faux",
     models: NAMES.map((m) => ({ id: m.id, name: m.name, contextWindow: 128000, maxTokens: 8192 })),

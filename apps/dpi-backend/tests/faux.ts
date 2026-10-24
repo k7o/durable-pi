@@ -32,7 +32,7 @@ export async function fauxModels(): Promise<Models> {
   return Models.from({ provider: "faux", engine, models: INFO, defaultModel: faux.modelId });
 }
 
-export function installFaux(models: MutableModels) {
+function installFaux(models: MutableModels) {
   const handle = fauxProvider({
     provider: "faux",
     models: [{ id: "echo", name: "Faux Echo", contextWindow: 128000, maxTokens: 8192 }],
