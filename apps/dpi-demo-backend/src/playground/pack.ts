@@ -16,7 +16,7 @@ import { lockFile } from "../../../dpi-backend/src/locks.js";
 import type { ConversationDoc, DeviceDoc, DevicePack, PackExtension, PackSession } from "../../../dpi-backend/src/pack.js";
 import type { SpawnSession } from "../../../dpi-backend/src/spawn.js";
 import { ADDON_INFO, PromptChecklist, PROMPTS, createAddons } from "./addons.js";
-import { Playground } from "./demo.js";
+import { DemoEndpoints } from "./demo.js";
 import { WORKSPACE_DOC, Workspace } from "./features/app-state/doc.js";
 import { JOB_DEFS, jobDef } from "./features/jobs/defs.js";
 import { createJobs, type Jobs } from "./features/jobs/engine.js";
@@ -30,7 +30,7 @@ const SEED: AppState = { goal: "Explore durable agents", counter: 0, notes: [] }
 
 /** The demo pack, plus the use cases and state its routes and its tests share. */
 export interface DemoPack extends DevicePack {
-  readonly playground: Playground;
+  readonly endpoints: DemoEndpoints;
   /** The open App State store. `Device.open` opens it and closes it with the pack. */
   shared(): SharedState;
   open(deps: { dataDir: string; appStatePath: string; notify: () => void }): Promise<void>;
@@ -46,7 +46,7 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
     if (!shared) throw Error("The demo pack is not open. Device.open calls pack.open before any session.");
     return shared;
   };
-  const playground = new Playground(requireShared, (sessionId) => jobsBySession.get(sessionId));
+  const endpoints = new DemoEndpoints(requireShared, (sessionId) => jobsBySession.get(sessionId));
 
   /** Seeding order is contract: Workspace, JobRuns, Todos. Do not reorder while moving. */
   const docs: readonly ConversationDoc[] = [
@@ -91,21 +91,21 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
       "/sessions/:s/agents/:a/demo/state",
       run(async (req, res) => {
         const { c } = await agent(req);
-        res.json(await playground.demoState(device, c, req.body ?? {}));
+        res.json(await endpoints.demoState(device, c, req.body ?? {}));
       }),
     );
     router.post(
       "/sessions/:s/agents/:a/demo/jobs",
       run(async (req, res) => {
         const { row, c } = await agent(req);
-        res.status(201).json(await playground.startJob(device, row.id, c, req.body ?? {}));
+        res.status(201).json(await endpoints.startJob(device, row.id, c, req.body ?? {}));
       }),
     );
     router.post(
       "/sessions/:s/agents/:a/demo/jobs/:taskId/approval",
       run(async (req, res) => {
         const { c } = await agent(req);
-        res.json(await playground.approveJob(c, taskId(req), req.body?.approved));
+        res.json(await endpoints.approveJob(c, taskId(req), req.body?.approved));
       }),
     );
     return router;
@@ -115,7 +115,7 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
     name: "demo",
     docs,
     deviceDocs,
-    playground,
+    endpoints,
     shared: requireShared,
     async open({ appStatePath, notify }) {
       unlock = lockFile(`${appStatePath}.lock`);

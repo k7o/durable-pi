@@ -5,9 +5,8 @@ import { defineTool } from "@earendil-works/pi-durable";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
 import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
+import { pause } from "../pause.js";
 import { Pager } from "./pager.js";
-
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   // No replay policy: the default `unsafe` means a crash mid-call returns an interrupted result and never pages twice.
   const pingOnCall = defineTool({

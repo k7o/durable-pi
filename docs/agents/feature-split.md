@@ -279,9 +279,11 @@ Accepted, fixed afterwards:
   `session-runtime.ts` supplies. `features/jobs/` now imports no sibling feature in either direction, and
   `Phase` still describes everything a handler may do.
 
-Accepted, not fixed, with reasons:
+Accepted, not fixed at the time, paid when the demo left the device:
 
-- `Playground` (in `demo.ts`) and `createPlayground` (in `playground.ts`) still share a name. The class
-  name is the store split's Q7; renaming it is that plan's decision, not this one's.
-- `pause` is one line duplicated in `features/jobs/tools.ts` and `features/side-effects/tool.ts`; a
-  third file to hold a `setTimeout` wrapper would cost more than it saves.
+- `Playground` (in `demo.ts`) and `createPlayground` (in `playground.ts`) shared a name. The class is now
+  `DemoEndpoints`, exported as `DemoPack.endpoints`; the store split's Q7 name survives only in that plan's
+  history. The session's `playground` extension keeps its name, which is prompt and client-visible.
+- `pause` was one line duplicated in `features/jobs/tools.ts` and `features/side-effects/tool.ts`. It now
+  lives in `features/pause.ts`, a leaf both features may import (TS-702 holds: it is not a sibling feature,
+  it is why `features/receipt.ts` exists).

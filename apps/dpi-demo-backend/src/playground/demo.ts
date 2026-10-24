@@ -1,7 +1,8 @@
 // The playground's own endpoints: write the shared App State, start a durable job for a
 // conversation, and answer a run's approval. They join the shared state, the job registry and the
 // device, so they sit above those modules rather than inside one of them. The demo pack's routes call
-// these; its tests call them directly.
+// these; its tests call them directly. The session's `playground` extension is a different thing:
+// `createPlayground` in `playground.ts` assembles it.
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation } from "@earendil-works/pi-durable";
 import type { StateChange } from "../../../dpi-sdk/src/app-state.js";
@@ -12,7 +13,7 @@ import type { Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";
 import { APP_STATE_DOC, type SharedState } from "./shared-state.js";
 
-export class Playground {
+export class DemoEndpoints {
   constructor(
     private readonly shared: () => SharedState,
     private readonly jobsOf: (sessionId: string) => Jobs | undefined,

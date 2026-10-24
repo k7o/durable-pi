@@ -7,13 +7,12 @@ import { jobRunDone, type JobRun } from "../../../../../dpi-sdk/src/jobs.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
 import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
+import { pause } from "../pause.js";
 import { Receipt } from "../receipt.js";
 import { jobDef, resolveJobInput } from "./defs.js";
 import type { Jobs } from "./engine.js";
 import { JobRuns } from "./record.js";
 import { clip } from "./shared.js";
-
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** One line per phase change, for the run_durable_job call's live output. */
 function progressLines(run: JobRun) {

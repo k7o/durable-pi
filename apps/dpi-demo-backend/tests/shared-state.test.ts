@@ -8,16 +8,16 @@ test("Shared App State persists across reload and is current across forks and se
   try {
     const session = await store.create({ name: "State", cwd: t.work, model: faux });
     const main = await store.resolveAgent(session.id, "main");
-    await t.pack.playground.demoState(store, main.c, { operation: "update", path: "", value: { custom: { count: 4, ready: false } } });
+    await t.pack.endpoints.demoState(store, main.c, { operation: "update", path: "", value: { custom: { count: 4, ready: false } } });
     const entry = (await store.activeEntries(main.c)).at(-1)!;
-    await t.pack.playground.demoState(store, main.c, { operation: "delete", path: "/custom/ready" });
-    await t.pack.playground.demoState(store, main.c, { operation: "increment", path: "/custom/count", value: -2 });
+    await t.pack.endpoints.demoState(store, main.c, { operation: "delete", path: "/custom/ready" });
+    await t.pack.endpoints.demoState(store, main.c, { operation: "increment", path: "/custom/count", value: -2 });
     const fork = await store.fork(main.row, main.c, { entryId: entry.id });
     assert.equal(fork.kind, "fork");
     assert.deepEqual((await store.deviceDoc("app.shared-state")).value, { custom: { count: 2 } });
     const other = await store.create({ name: "Other agent", cwd: t.work, model: faux });
     const otherMain = await store.resolveAgent(other.id, "main");
-    await t.pack.playground.demoState(store, otherMain.c, { operation: "increment", path: "/custom/count", value: 1 });
+    await t.pack.endpoints.demoState(store, otherMain.c, { operation: "increment", path: "/custom/count", value: 1 });
     assert.deepEqual((await store.deviceDoc("app.shared-state")).value, { custom: { count: 3 } });
     const revision = (await t.pack.shared().snapshot()).revision;
     await t.pack.shared().change({ operation: "increment", path: "/custom/count", value: 1 }, "repeatable-tool");

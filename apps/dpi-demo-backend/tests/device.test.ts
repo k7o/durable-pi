@@ -15,7 +15,7 @@ const jobs = async (store: Device, session: string) => {
 };
 const startJob = async (store: Device, pack: DemoPack, session: string, job: string, input: Record<string, unknown> = {}) => {
   const m = await store.resolveAgent(session, "main");
-  return (await pack.playground.startJob(store, m.row.id, m.c, { job, input })).taskId;
+  return (await pack.endpoints.startJob(store, m.row.id, m.c, { job, input })).taskId;
 };
 
 test("sessions, browse, names, forks, jobs, restart recovery, approval, interruption, archive", async () => {
@@ -46,9 +46,9 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
 
     // App State changes append an entry; a fork at that entry sees the current shared state.
     const main = await store.resolveAgent(session.id, "main");
-    await t.pack.playground.demoState(store, main.c, { increment: true });
+    await t.pack.endpoints.demoState(store, main.c, { increment: true });
     const entry = (await store.activeEntries(main.c)).at(-1)!;
-    await t.pack.playground.demoState(store, main.c, { increment: true });
+    await t.pack.endpoints.demoState(store, main.c, { increment: true });
     const fork = await store.fork(main.row, main.c, { entryId: entry.id, name: "alt approach" });
     assert.equal(fork.kind, "fork");
     assert.equal(fork.parentId, 1);
@@ -88,8 +88,8 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
     store = await t.open();
     m = await store.resolveAgent(session.id, "main");
     assert.equal((await jobs(store, session.id)).items[release].approval, "pending");
-    await t.pack.playground.approveJob(m.c, release, true);
-    await assert.rejects(() => t.pack.playground.approveJob(m.c, release, true), /No pending approval/);
+    await t.pack.endpoints.approveJob(m.c, release, true);
+    await assert.rejects(() => t.pack.endpoints.approveJob(m.c, release, true), /No pending approval/);
     await until(async () => (await jobs(store, session.id)).items[release]?.status === "completed", 20000, "release published");
 
     // Interrupt stops foreground work only; background=true also stops runs the conversation owns.

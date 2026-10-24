@@ -288,7 +288,7 @@ Read-only filtering reads the tool-policy view from slice 3, not a name set.
 export function createPlayground(shared: SharedState, sessionId: string,
   spawn: SpawnSession, jobs: Jobs): Extension;      // used by SessionRuntime.open
 
-export class Playground {
+export class Playground {   // renamed `DemoEndpoints` when the demo left the device, see device-pack.md
   demoState(c: Conversation, body: Record<string, unknown>): Promise<unknown>;
   startJob(row: SessionRow, h: Harness, c: Conversation, jobs: Jobs,
     body: Record<string, unknown>): Promise<{ taskId: number }>;
