@@ -30,8 +30,9 @@ stage:
     @rsync -a {{exclude}} apps/dpi-sdk/ sbx/build/apps/dpi-sdk/
     @rsync -a {{exclude}} apps/dpi-backend/ sbx/build/apps/dpi-backend/
     @rsync -a {{exclude}} apps/dpi-demo-backend/ sbx/build/apps/dpi-demo-backend/
+    @rsync -a {{exclude}} apps/dpi-news-backend/ sbx/build/apps/dpi-news-backend/
     @rsync -a {{exclude}} apps/dpi-tui/ sbx/build/apps/dpi-tui/
-    @echo "staged dpi-sdk, dpi-backend, dpi-demo-backend, dpi-tui into sbx/build/apps"
+    @echo "staged dpi-sdk, dpi-backend, dpi-demo-backend, dpi-news-backend, dpi-tui into sbx/build/apps"
 
 # Build into the local image store, for iterating with docker run. The result is not
 # publishable: `docker push` from the image store serializes it as Docker schema2, which has no

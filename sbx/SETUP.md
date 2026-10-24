@@ -19,13 +19,17 @@ host                                    sandbox (one per device)
 
 Nothing on the host calls a model. Nothing in a sandbox holds a key.
 
-**What a device sandbox serves.** The image carries two apps: the device (`apps/dpi-backend`:
-boot, HTTP/SSE, sessions, agents, durability) and the playground demo (`apps/dpi-demo-backend`:
-App State, todos, the four durable jobs, the pager, the extra tools and the `/demo` routes).
-`durable start` points `DPI_PACK` at the demo's pack, so a sandbox is a demo device by default —
-the tools you see in the browser include `run_durable_job`. A bare device is
-`DPI_PACK: ""` in the environment file (step 5); it keeps App State and `read_state`/`update_state`
-(every device has those), and loses the demo's tools and its faux model.
+**What a device sandbox serves.** The image carries the device (`apps/dpi-backend`: boot, HTTP/SSE,
+sessions, agents, durability) and both packs: the playground demo (`apps/dpi-demo-backend`: the
+workspace document, todos, the four durable jobs, the pager, the extra tools and the `/demo` routes)
+and the news desk (`apps/dpi-news-backend`: `news.stories`, the `news` tool, the digest run).
+`DPI_PACK` picks one **per device at boot**, so a sandbox is a demo device by default and a news
+device if its environment file points at `/opt/durable-pi/apps/dpi-news-backend/src/pack.ts`. A bare
+device is `DPI_PACK: ""`; it keeps App State and `read_state`/`update_state` (every device has
+those) and loses both packs' tools and the demo's scripted faux model.
+
+One device serves one pack: two products on one sandbox is two sandboxes, each with its own port,
+data dir and `DPI_PACK`.
 
 ## 1. Prerequisites on the host
 
