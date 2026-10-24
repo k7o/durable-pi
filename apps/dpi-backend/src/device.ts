@@ -121,7 +121,12 @@ export class Device {
         throw e;
       }
       device.appState.harness.subscribeCommits(() => device.notify());
-      await pack.open?.({ dataDir: resolved.dataDir, appState: device.appState, notify: () => device.notify() });
+      await pack.open?.({
+        dataDir: resolved.dataDir,
+        appState: device.appState,
+        notify: () => device.notify(),
+        classify: (context, options) => device.models.classify(context, options),
+      });
       device.documents = new Documents(pack, device.appState);
       device.sessions = new SessionRuntime({
         catalog,
@@ -131,6 +136,7 @@ export class Device {
         pack,
         appState: device.appState,
         documents: device.documents,
+        classify: (context, options) => device.models.classify(context, options),
         spawn: device.spawnSession,
         archiveDir: device.archiveDir,
         startDirs: device.startDirs,

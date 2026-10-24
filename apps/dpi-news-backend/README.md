@@ -14,6 +14,7 @@ app actually cost? — and the answer is this directory.
 | Task `news.digest` | `src/digest.ts` | One phase, one commit, one outcome. Started by the tool, runs in the background, and records the last run in App State under `/news`. |
 | Task `news.fetch` | `src/fetch.ts` | Reads one feed per phase invocation and commits its progress, so a restart resumes at the next feed instead of the first. Adds what the list does not have and records what each feed did. |
 | Feeds | `src/sources.ts` | `DEFAULT_SOURCES` plus `parseFeed`, a dependency-free RSS/Atom reader. |
+| Task `news.triage` | `src/triage.ts` | Asks the device's classifier how relevant each unjudged story is to the list's `topics`, one story per invocation. Writes `relevance`, never deletes, and records why when it cannot judge. |
 | Pack | `src/pack.ts` | One document, one extension, one capability (`news`). Default export for `DPI_PACK`; imports the device through its `pack-api.ts` only. |
 | Wire types | `apps/dpi-sdk/src/packs/news.ts` | Shared with clients, like the demo's `packs/demo-todos.ts`. |
 
@@ -45,6 +46,31 @@ DPI_PACK=/opt/durable-pi/apps/dpi-news-backend/src/pack.ts dpi-backend
 keeps what this conversation's list does not already have, and writes `doc.fetch` — per-source `ok`/`added`/`skipped`,
 plus an `error` for the ones that failed. It is on demand, not on a timer: a cron belongs outside the device, in an app
 that calls `/v1` with the token.
+
+## Judging relevance
+
+`news` with `action: "topics"` says what the list is *for* ("durable execution, local-first sync"), and `action: "triage"`
+starts a run that asks the device's classifier how much each unjudged story has to do with those topics. It writes
+`relevance` (0-100) beside the story, plus `relevanceBy` naming the classifier that answered, and a `triage` record on the
+document.
+
+Four things about the shape:
+
+- **Score, do not delete.** A dropped story is unrecoverable and un-auditable; a low score is a threshold you can move
+  later. `relevance` (a judgement) is kept apart from `score` (a person's own ranking) so neither overwrites the other.
+- **Topics first.** Without them there is nothing to be relevant to, so a run records `no topics on this list` and judges
+  nothing rather than inventing a criterion.
+- **Fail open, loudly.** No classifier, or a call that fails, is recorded in `doc.triage` with the stories left unjudged —
+  never dropped, never defaulted to zero. Same rule the demo's `jev-damage-control` documents for itself.
+- **One story per invocation, committed before the next call**, ≤20 per run, newest first. Judging costs a request; a
+  restart must not pay for the same answer twice, and a run's cost should be bounded. Whatever a run does not reach is
+  `deferred`, not lost.
+
+The classifier is the device's: `createSession` hands every pack a `classify` function (pi-durable's `Models.classify`), so
+Jev is reachable without this app depending on pi-ai or knowing which provider serves it. A pack may supply its own (a test
+does) and it wins. Jev itself is `typesafe`'s `jev-latest` or `opencode`'s `jev-1.13` — `.env.example` notes that
+`OPENCODE_API_KEY` serves it — and a device whose provider offers no classifier is a device where triage records an error
+and everything else works.
 
 **Feeds, not pages.** RSS and Atom are a site saying "here is a list you may read"; scraping an article page means
 guessing at markup that changes and deciding for yourself what their terms allow. `parseFeed` handles those two formats

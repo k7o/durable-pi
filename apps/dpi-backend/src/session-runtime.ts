@@ -31,7 +31,7 @@ import type { SharedState } from "./app-state.js";
 import { lockFile } from "./locks.js";
 import { stateTools } from "./state-tools.js";
 import type { Models } from "./models.js";
-import type { DevicePack } from "./pack.js";
+import type { Classify, DevicePack } from "./pack.js";
 import type { SpawnSession } from "./spawn.js";
 import { CODING_WRITES, withWrites } from "./tool-policy.js";
 
@@ -46,6 +46,8 @@ export interface SessionRuntimeOptions {
   pack: DevicePack;
   /** The device's App State, handed to each pack session so its tools can read and change it. */
   appState: SharedState;
+  /** The device's classifier, lent to the pack: see `Classify` in pack.ts. */
+  classify: Classify;
   documents: Documents;
   spawn: SpawnSession;
   archiveDir: string;
@@ -127,7 +129,11 @@ export class SessionRuntime {
       // them, and a pack never has to copy this pair to reach its own device's state.
       const state = stateTools(this.options.appState, row.id);
       registry.install(state);
-      const session = this.options.pack.createSession({ spawn: this.options.spawn, appState: this.options.appState });
+      const session = this.options.pack.createSession({
+        spawn: this.options.spawn,
+        appState: this.options.appState,
+        classify: this.options.classify,
+      });
       // The pack's extensions in install order: device tools first, then the pack's, then the agent's own system ones.
       const installed = [coding, state, ...session.install({ sessionId: row.id })];
       for (const extension of installed) registry.install(extension);

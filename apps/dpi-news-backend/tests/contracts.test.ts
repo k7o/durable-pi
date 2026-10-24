@@ -25,11 +25,11 @@ test("contracts: the pack names itself, adds one document and advertises one cap
 
 test("contracts: one extension offers one tool and registers both tasks", () => {
   const installed = createNewsPack()
-    .createSession({ spawn: refuse as unknown as SpawnSession, appState })
+    .createSession({ spawn: refuse as unknown as SpawnSession, appState, classify: refuse })
     .install({ sessionId: "contract-session" });
   assert.deepEqual(installed.map((extension) => extension.name), ["news"]);
   assert.deepEqual(installed[0].tools?.map((tool) => tool.name), ["news"]);
   // Order is the registration order, and both are reachable from the tool: `fetch` reads feeds, `digest` summarises.
-  assert.deepEqual(installed[0].tasks?.map((task) => task.definition.name), ["news.fetch", "news.digest"]);
+  assert.deepEqual(installed[0].tasks?.map((task) => task.definition.name), ["news.fetch", "news.digest", "news.triage"]);
   assert.deepEqual(installed[0].sections, undefined, "the pack adds no prompt section yet");
 });

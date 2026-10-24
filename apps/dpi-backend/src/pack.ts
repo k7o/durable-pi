@@ -2,6 +2,7 @@
 // durability and the stores every pack shares (App State); a pack owns the conversation documents, the extensions
 // installed in a session and any extra routes. Three packs exist — the empty one below, the demo app's and the news
 // app's — so this is one small interface, not a plugin framework.
+import type { ClassifierContext, ClassifierResult } from "@earendil-works/pi-ai";
 import type { Router } from "express";
 import type { CheckpointInfo, Conversation, ConversationId, Extension, Harness, Tx } from "@earendil-works/pi-durable";
 import type { AppStateStore } from "./app-state.js";
@@ -72,6 +73,14 @@ export interface PackSession {
   install(deps: { sessionId: string }): readonly Extension[];
 }
 
+/**
+ * What a pack may ask of the device's classifier: one judgement about one JSON state, through whichever classifier this
+ * device is configured with (Jev, when the provider serves it). A function rather than the `Models` handle, for the same
+ * reason `AppStateStore` is a `Pick` — a pack gets the capability, not the engine behind it — and it is optional because
+ * a provider may offer no classifier at all.
+ */
+export type Classify = (context: ClassifierContext, options?: { signal?: AbortSignal }) => Promise<ClassifierResult>;
+
 export interface DevicePack {
   readonly name: string;
   /** Conversation documents, in seeding order. A client's subscription list adds the matching kinds. */
@@ -83,10 +92,10 @@ export interface DevicePack {
    * read and change it here (or in a tool) with `snapshot()` and `change()`, and `seed()` only the keys this pack owns,
    * so two packs can share the document. `notify` wakes the device's change feed.
    */
-  open?(deps: { dataDir: string; appState: AppStateStore; notify: () => void }): Promise<void>;
+  open?(deps: { dataDir: string; appState: AppStateStore; notify: () => void; classify: Classify }): Promise<void>;
   /** Release what `open` acquired. Safe to call twice. */
   close?(): Promise<void>;
-  createSession(deps: { spawn: SpawnSession; appState: AppStateStore }): PackSession;
+  createSession(deps: { spawn: SpawnSession; appState: AppStateStore; classify: Classify }): PackSession;
   /**
    * The models this pack supplies when the device is asked for a provider the device itself does not ship, today
    * only `DPI_PROVIDER=faux`. Without it the device refuses that provider, so the demo app is the only place the

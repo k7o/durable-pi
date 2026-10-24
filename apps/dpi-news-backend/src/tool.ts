@@ -9,7 +9,7 @@ import { Stories, StoryReceipt } from "./stories.js";
 import type { NewsTasks } from "./tasks.js";
 
 export const NEWS_DESCRIPTION =
-  "Keep this conversation's news desk: add a story, list it, score it 0-100, fetch the configured feeds, or run a digest that summarises the list.";
+  "Keep this conversation's news desk: add a story, list it, score it 0-100, fetch the configured feeds, set what the list is about, judge how relevant the unjudged stories are, or run a digest that summarises the list.";
 
 /**
  * The `news` tool. It closes over this app's task definitions, which close over the device's App State, so a pack builds
@@ -21,13 +21,27 @@ export function createNewsTool(tasks: NewsTasks) {
     description: NEWS_DESCRIPTION,
     parameters: Type.Object({
       action: Type.Union(
-        [Type.Literal("add"), Type.Literal("list"), Type.Literal("rank"), Type.Literal("fetch"), Type.Literal("digest")],
+        [
+          Type.Literal("add"),
+          Type.Literal("list"),
+          Type.Literal("rank"),
+          Type.Literal("fetch"),
+          Type.Literal("topics"),
+          Type.Literal("triage"),
+          Type.Literal("digest"),
+        ],
         { description: "What to do with the list." },
       ),
       title: Type.Optional(Type.String({ description: "Story title for add. Required for add." })),
       url: Type.Optional(Type.String({ description: "Story link for add. Optional." })),
       id: Type.Optional(Type.String({ description: "Story id from list. Required for rank." })),
       score: Type.Optional(Type.Number({ description: "0-100 for rank. Required for rank.", minimum: 0, maximum: 100 })),
+      topics: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "What this list is about, for topics. Replaces the list: a triage run judges relevance against it, and without it there is nothing to be relevant to.",
+        }),
+      ),
     }),
     replay: "safe",
     execute: async (args, api, ctx) => {
@@ -46,6 +60,8 @@ export function createNewsTool(tasks: NewsTasks) {
             items: doc.items,
             ...(doc.digest ? { digest: doc.digest } : {}),
             ...(doc.fetch ? { fetch: doc.fetch } : {}),
+            ...(doc.topics ? { topics: doc.topics } : {}),
+            ...(doc.triage ? { triage: doc.triage } : {}),
           });
         } else if (args.action === "add") {
           const title = args.title?.trim();
@@ -66,6 +82,21 @@ export function createNewsTool(tasks: NewsTasks) {
           if (!story) throw Error(`No story ${id}. Use action list for ids.`);
           story.score = Math.round(args.score);
           out = `Ranked ${id} at ${story.score}: ${story.title}`;
+        } else if (args.action === "topics") {
+          // The criterion every relevance score is measured against, so it is stored on the list rather than in a prompt.
+          const topics = (args.topics ?? []).map((topic) => topic.trim()).filter(Boolean);
+          if (!topics.length) throw Error("topics needs at least one topic, or omit the action to leave the list alone");
+          doc.topics = topics;
+          out = `Topics: ${topics.join(", ")}. Run action triage to judge the unjudged stories against them.`;
+        } else if (args.action === "triage") {
+          const taskId = await tx.createTask(
+            tasks.triage,
+            {},
+            { ownership: { kind: "conversation" }, conversationId: api.conversationId, background: true },
+          );
+          receipt.applied = true;
+          receipt.result = `Started triage run as durable task #${taskId}. It scores the unjudged stories 0-100 for relevance and leaves them in place; read the result with action list.`;
+          return receipt.result;
         } else if (args.action === "fetch") {
           // One feed per phase invocation, so a restart resumes at the next feed rather than at the first.
           const taskId = await tx.createTask(

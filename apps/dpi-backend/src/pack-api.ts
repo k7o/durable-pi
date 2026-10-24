@@ -31,6 +31,7 @@ export { serve } from "./serve.js";
 export { faux, fauxModels } from "./faux.js";
 export { foldEvery } from "./pack.js";
 export type {
+  Classify,
   ConversationDoc,
   DeviceDoc,
   DevicePack,

@@ -75,12 +75,12 @@ test("sources: a feed becomes stories, decoded, deduplicated and made absolute",
 
 test("news desk: a fetch run reads the feeds, keeps what is new, and reports the broken one", async () => {
   const site = await feedServer();
-  const t = await tempDevice(sources(site.base));
+  const t = await tempDevice({ sources: sources(site.base) });
   const store = await t.open();
   try {
     const session = await store.create({ name: "Desk", cwd: t.work, model: faux });
 
-    const started = await callTool(store, session.id, { action: "fetch" }, sources(site.base));
+    const started = await callTool(store, session.id, { action: "fetch" }, { sources: sources(site.base) });
     assert.match(started, /^Started fetch run as durable task #\d+\./);
     await until(async () => (await stories(store, session.id)).fetch !== undefined, 30_000, "the fetch run");
 
@@ -113,7 +113,7 @@ test("news desk: a fetch run reads the feeds, keeps what is new, and reports the
     assert.ok(doc.items.every((story) => /^f\d+-\d+$/u.test(story.id)));
 
     // Running it again over unchanged feeds adds nothing: that is what makes a timer safe.
-    await callTool(store, session.id, { action: "fetch" }, sources(site.base));
+    await callTool(store, session.id, { action: "fetch" }, { sources: sources(site.base) });
     await until(async () => (await stories(store, session.id)).fetch?.at !== doc.fetch?.at, 30_000, "the second run");
     const second = await stories(store, session.id);
     assert.equal(second.items.length, 4);

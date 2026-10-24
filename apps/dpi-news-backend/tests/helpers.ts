@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { defineTask, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import type { StorySource } from "../../dpi-sdk/src/packs/news.js";
+import type { Classify } from "../../dpi-backend/src/pack-api.js";
 import { Device } from "../../dpi-backend/src/device.js";
 import { faux, fauxModels } from "../../dpi-backend/src/faux.js";
 import { createNewsPack } from "../src/pack.js";
@@ -45,10 +46,10 @@ const Live = defineTask<Record<string, never>, { phase: "wait" }, undefined>({
  * A temp data dir and working folder, opened as a news device. Reopen with `open()` after a close. `sources` reaches the
  * pack's extension, which is the definition the engine actually runs, so a fetch run reads whatever the test says.
  */
-export async function tempDevice(sources?: readonly StorySource[]) {
+export async function tempDevice(options: { sources?: readonly StorySource[]; classify?: Classify } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-news-")));
   await mkdir(join(root, "work", "project"), { recursive: true });
-  const options = {
+  const deviceOptions = {
     dataDir: join(root, "data"),
     startDirs: [join(root, "work")],
     name: "news-test",
@@ -58,8 +59,8 @@ export async function tempDevice(sources?: readonly StorySource[]) {
     root,
     work: join(root, "work"),
     options,
-    pack: createNewsPack(sources),
-    open: () => Device.open(options, createNewsPack(sources)),
+    pack: createNewsPack(options),
+    open: () => Device.open(deviceOptions, createNewsPack(options)),
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }
@@ -72,7 +73,7 @@ export async function callTool(
   store: Device,
   session: string,
   args: Record<string, unknown>,
-  sources?: readonly StorySource[],
+  options: { sources?: readonly StorySource[]; classify?: Classify } = {},
 ): Promise<string> {
   const { h, c } = await store.resolveAgent(session, "main");
   const taskId = await h.commit(
@@ -84,8 +85,8 @@ export async function callTool(
     conversationId: c.id,
     commit: (change: (tx: never) => unknown, commitContext: typeof ctx) => h.commit(change as never, commitContext),
   } as unknown as ToolExecutionApi;
-  // `sources` is how a fetch test points the run at its own server instead of the news.
-  const tool = createNewsTool(createNewsTasks(store.appState, sources));
+  // `sources` and `classify` are how a test points the runs at its own feeds and its own judgement instead of the news.
+  const tool = createNewsTool(createNewsTasks(store.appState, options));
   const result = await tool.execute(args as never, api, ctx);
   return (result.output as { type: string; text: string }[])[0].text;
 }

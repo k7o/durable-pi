@@ -1,5 +1,6 @@
 // The device's model policy: register exactly one provider, curate its picker list, route stored
 // choices to this device, and keep the resulting model list. The harness reads `engine`.
+import type { ClassifierContext, ClassifierModel, ClassifierResult } from "@earendil-works/pi-ai";
 import { createModels } from "@earendil-works/pi-ai/models";
 import type { ModelRef } from "@earendil-works/pi-durable";
 import type { ModelInfo } from "../../dpi-sdk/src/api.js";
@@ -10,6 +11,9 @@ import { providerFor, type ProviderId } from "./provider.js";
 type Engine = ReturnType<typeof createModels>;
 
 export class Models {
+  /** The classifier this device judges with, resolved once: a provider may offer none, and none is not an error here. */
+  #classifier?: ClassifierModel<string> | null;
+
   private constructor(
     readonly provider: ProviderId,
     readonly list: ModelInfo[],
@@ -57,6 +61,38 @@ export class Models {
 
   windowOf(modelId: string): number {
     return this.list.find((m) => m.id === modelId)?.contextWindow ?? 0;
+  }
+
+  /**
+   * The first classifier this device's provider offers, or nothing. Chat models and classifiers are different model
+   * types: a provider may list ten models that write prose and none that judge, which is why this is separate from
+   * `list` and why the answer is cached.
+   */
+  async classifier(): Promise<{ provider: string; id: string } | undefined> {
+    const model = await this.#classifierModel();
+    return model ? { provider: model.provider, id: model.id } : undefined;
+  }
+
+  async #classifierModel(): Promise<ClassifierModel<string> | undefined> {
+    if (this.#classifier !== undefined) return this.#classifier ?? undefined;
+    // Discovery touches the credential store, so it is best-effort and bounded: a device without a classifier must still
+    // boot, and a slow provider must not hold up a triage run.
+    const found = await this.engine
+      .getAvailableOfType("classifier", this.provider, { signal: AbortSignal.timeout(10_000) })
+      .catch(() => []);
+    this.#classifier = (found[0] as ClassifierModel<string> | undefined) ?? null;
+    return this.#classifier ?? undefined;
+  }
+
+  /**
+   * Judge one JSON state. Throws when this device has no classifier, which a caller is expected to catch and record
+   * rather than to treat as a reason to change what it already has.
+   */
+  async classify(context: ClassifierContext, options: { signal?: AbortSignal } = {}): Promise<ClassifierResult> {
+    const model = await this.#classifierModel();
+    if (!model)
+      throw Error(`no classifier on this device: provider ${this.provider} offers none (Jev is served by typesafe or opencode)`);
+    return this.engine.classify(model, context, options);
   }
 }
 

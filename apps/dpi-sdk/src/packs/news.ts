@@ -12,6 +12,13 @@ export type Story = {
   url?: string;
   /** 0 to 100 once someone ranked it; absent means it is still waiting for a look. */
   score?: number;
+  /**
+   * 0 to 100 from a triage run: how relevant a classifier judged it to be to this list's `topics`. Kept apart from
+   * `score`, which is a person's ranking, so a judgement and an opinion never overwrite each other.
+   */
+  relevance?: number;
+  /** Which classifier answered, and when. Absent when the score came from anywhere else. */
+  relevanceBy?: { provider: string; model: string; at: number };
   /** Which feed a fetch run took it from; absent when a person or the agent added it by hand. */
   source?: string;
   /** The feed's own date, when it carried one. */
@@ -35,6 +42,19 @@ export type StoryFetchSource = {
   added: number;
   skipped: number;
   /** Why this feed failed: an HTTP status, a timeout, or the first line of the error. */
+  error?: string;
+};
+
+/** What the last triage run did. `error` is how a client learns relevance is unavailable rather than zero. */
+export type StoryTriage = {
+  at: number;
+  /** The topics the run judged against, copied so the scores stay interpretable after the topics change. */
+  topics: string[];
+  scored: number;
+  /** Candidates this run left for the next one, because a run is capped. */
+  deferred: number;
+  /** Candidates a classifier call failed on, and why. */
+  failed: number;
   error?: string;
 };
 
@@ -62,4 +82,10 @@ export type StoriesDoc = {
   runs: number;
   digest?: StoryDigest;
   fetch?: StoryFetch;
+  /**
+   * What this list is for, in words: "durable execution, local-first sync". Triage judges against it, and without it
+   * there is nothing to be relevant to, so a run records that instead of inventing a criterion.
+   */
+  topics?: string[];
+  triage?: StoryTriage;
 };

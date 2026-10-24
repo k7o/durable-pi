@@ -28,7 +28,7 @@ A pack supplies:
 | `docs` | conversation documents, in seeding order | `demo.workspace`, `demo.job-runs`, `demo.todos` |
 | `deviceDocs` | device-scoped documents a pack adds | none — App State is the device's own device document |
 | `open` / `close` | the pack's contribution to the device's stores | seeds the App State keys the pack owns; the device opens and locks `app-state.sqlite` and tells the change feed |
-| `createSession({ spawn, appState })` | per-session extensions, in install order; `appState` is an `AppStateStore` (`snapshot`, `change`, `seed`), not the store object | the one `playground` extension (9 tools) |
+| `createSession({ spawn, appState, classify })` | per-session extensions, in install order; `appState` is an `AppStateStore` (`snapshot`, `change`, `seed`), not the store object, and `classify` is the device's classifier (`Models.classify`, so Jev when the provider serves it) as a plain function | the one `playground` extension (9 tools) |
 | `sessionExtensions` | custom extensions, installed unselected | `system-prompts`, `jev-damage-control` |
 | `routes(device)` | extra `/v1` routes, behind the token; the device is full-power here on purpose, since a route is a product endpoint | `POST .../demo/state`, `.../demo/jobs`, `.../demo/jobs/:taskId/approval` |
 | `info()` | fields merged into `GET /v1/device` | `jobs`, and the `demo`/`jobs` capabilities |

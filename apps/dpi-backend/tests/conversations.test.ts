@@ -32,6 +32,10 @@ async function tempConversation() {
     pack: EMPTY_PACK,
     appState,
     documents: new Documents(EMPTY_PACK, appState),
+    // This device has no classifier, which is a state a real one can be in: the refusal is what a pack records.
+    classify: async () => {
+      throw Error("no classifier in this test");
+    },
     spawn: async () => {
       throw Error("unused");
     },
