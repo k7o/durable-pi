@@ -5,15 +5,18 @@
 // `createPlayground` in `playground.ts` assembles it.
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation } from "@earendil-works/pi-durable";
+import {
+  ApiFault,
+  invalid,
+  STATE_ENTRY_KIND,
+  type Device,
+  type SharedState,
+} from "../../../dpi-backend/src/pack-api.js";
 import type { StateChange } from "../../../dpi-sdk/src/app-state.js";
-import type { Device } from "../../../dpi-backend/src/device.js";
-import { ApiFault, invalid } from "../../../dpi-backend/src/errors.js";
 import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";
-import { STATE_ENTRY_KIND } from "../../../dpi-backend/src/state-tools.js";
 import { APP_STATE_DOC } from "../../../dpi-sdk/src/app-state.js";
-import type { SharedState } from "../../../dpi-backend/src/app-state.js";
 
 export class DemoEndpoints {
   constructor(

@@ -2,7 +2,7 @@
 // the first result, so an interrupted call never applies its edit twice. update_state and run_durable_job share the
 // definition because a task id belongs to exactly one call.
 import { defineDoc } from "@earendil-works/pi-durable";
-import { foldEvery } from "../../../../dpi-backend/src/pack.js";
+import { foldEvery } from "../../../../dpi-backend/src/pack-api.js";
 
 export const Receipt = defineDoc<{ applied: boolean; result: string }>({
   kind: "demo.receipt",

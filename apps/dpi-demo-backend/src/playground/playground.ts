@@ -2,12 +2,12 @@
 // tools and sections is decided, and that order is the prompt (PI-208), so features are listed in the order their
 // tools are offered and a new feature goes at the end.
 import { defineExtension, section } from "@earendil-works/pi-durable";
+import type { SpawnSession } from "../../../dpi-backend/src/pack-api.js";
 import type { Feature } from "./features/feature.js";
 import { historyTools } from "./features/history/tool.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { jobsTools } from "./features/jobs/tools.js";
 import { sessionTools } from "./features/sessions/tools.js";
-import type { SpawnSession } from "../../../dpi-backend/src/spawn.js";
 import { pager } from "./features/side-effects/tool.js";
 import { todos } from "./features/todos/tools.js";
 import { PLAYGROUND_SECTION } from "./prompt.js";

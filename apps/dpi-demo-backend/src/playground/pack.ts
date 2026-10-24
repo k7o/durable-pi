@@ -9,14 +9,20 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { ConversationId } from "@earendil-works/pi-durable";
+import {
+  DEVICE_CAPABILITIES,
+  invalid,
+  type SharedState,
+  type Device,
+  type ConversationDoc,
+  type DevicePack,
+  type PackExtension,
+  type PackSession,
+  type SpawnSession,
+} from "../../../dpi-backend/src/pack-api.js";
 import type { AppState } from "../../../dpi-sdk/src/app-state.js";
-import type { SharedState } from "../../../dpi-backend/src/app-state.js";
 import { JOB_RUNS_DOC } from "../../../dpi-sdk/src/jobs.js";
 import { TODOS_DOC } from "../../../dpi-sdk/src/todos.js";
-import { DEVICE_CAPABILITIES, type Device } from "../../../dpi-backend/src/device.js";
-import { invalid } from "../../../dpi-backend/src/errors.js";
-import type { ConversationDoc, DevicePack, PackExtension, PackSession } from "../../../dpi-backend/src/pack.js";
-import type { SpawnSession } from "../../../dpi-backend/src/spawn.js";
 import { ADDON_INFO, PromptChecklist, PROMPTS, createAddons } from "./addons.js";
 import { DemoEndpoints } from "./demo.js";
 import { WORKSPACE_DOC, Workspace } from "./features/app-state/doc.js";

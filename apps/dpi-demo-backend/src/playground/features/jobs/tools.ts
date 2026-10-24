@@ -3,9 +3,9 @@
 import type { Context } from "@earendil-works/chord";
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ToolExecutionApi } from "@earendil-works/pi-durable";
+import { writing } from "../../../../../dpi-backend/src/pack-api.js";
 import { jobRunDone, type JobRun } from "../../../../../dpi-sdk/src/jobs.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
 import { pause } from "../pause.js";
 import { Receipt } from "../receipt.js";
@@ -27,7 +27,6 @@ function progressLines(run: JobRun) {
 }
 
 const phaseLabel = (run: JobRun) => run.phases.find((p) => p.id === run.phase)?.label;
-
 
 /** One run as check_durable_job reports it: compact enough for a model, complete enough to act on. */
 function runReport(run: JobRun, now: number) {

@@ -13,6 +13,7 @@
 //   "Release check: …" (the release-check job's subagent) → one bash call
 //   anything else  → "Echo: <text>"
 import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
+import { Models } from "../../dpi-backend/src/pack-api.js";
 import {
   fauxAssistantMessage,
   fauxProvider,
@@ -21,7 +22,6 @@ import {
   type FauxResponseFactory,
 } from "@earendil-works/pi-ai/providers/faux";
 import type { ModelInfo } from "../../dpi-sdk/src/api.js";
-import { Models } from "../../dpi-backend/src/models.js";
 
 export const faux = { provider: "faux", modelId: "echo" } as const;
 

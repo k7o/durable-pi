@@ -4,7 +4,7 @@
 // the model uninformed, and a replayed call returns its first result instead of adding the same story twice.
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
-import { writing } from "../../dpi-backend/src/tool-policy.js";
+import { writing } from "../../dpi-backend/src/pack-api.js";
 import { createNewsDigest } from "./digest.js";
 import { Stories, StoryReceipt } from "./stories.js";
 

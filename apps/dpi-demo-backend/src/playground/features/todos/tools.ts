@@ -1,8 +1,8 @@
 // The `todo` tool: this conversation's own durable list.
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
+import { writing } from "../../../../../dpi-backend/src/pack-api.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
 import { TodoReceipt, Todos } from "./doc.js";
 

@@ -5,7 +5,7 @@
 // The task is built per session because the device hands each pack its App State store: a second app reads and writes
 // the same shared document as the demo without importing the demo.
 import { defineTask } from "@earendil-works/pi-durable";
-import type { SharedState } from "../../dpi-backend/src/app-state.js";
+import type { SharedState } from "../../dpi-backend/src/pack-api.js";
 import type { StoryDigest } from "../../dpi-sdk/src/news.js";
 import { Stories } from "./stories.js";
 

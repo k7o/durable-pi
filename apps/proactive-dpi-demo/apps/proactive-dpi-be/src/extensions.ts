@@ -11,7 +11,7 @@ import {
   type ToolExecutionApi,
 } from "@earendil-works/pi-durable";
 import type { Context } from "@earendil-works/chord";
-import { foldEvery } from "../../../../dpi-backend/src/pack.js";
+import { foldEvery } from "../../../../dpi-backend/src/pack-api.js";
 import type { Deploy, Incident, IncidentStatus, StreamRow } from "../../../shared/types.ts";
 import { verifyAndCommit } from "./repo.ts";
 import type { WatchStore } from "./watch-store.ts";

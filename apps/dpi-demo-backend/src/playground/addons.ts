@@ -7,9 +7,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineDoc, defineExtension, hook, section, ToolTask, type Extension } from "@earendil-works/pi-durable";
+import { foldEvery } from "../../../dpi-backend/src/pack-api.js";
 import type { HarnessExtensionInfo } from "../../../dpi-sdk/src/api.js";
 import { askJev, type JevAnswer, type JevQuestion } from "./jev.js";
-import { foldEvery } from "../../../dpi-backend/src/pack.js";
 
 const PROMPTS_DIR = join(import.meta.dirname, "../../prompts");
 

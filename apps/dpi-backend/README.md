@@ -2,7 +2,7 @@
 
 The Durable Pi **device server**. Run one on every machine that should host durable agents: your laptop, a Mac mini, a Linux box, an exe.dev VM. It owns the harnesses, the SQLite databases, the tools and the filesystem. Clients connect with the device's **URL and bearer token** through the [v1 API](API.md).
 
-This app is the device alone: boot, HTTP/SSE, sessions, agents and durability. What the device serves beyond that comes from a **pack** (`src/pack.ts`), and this binary's default pack is empty: the coding tools, no agent documents and no extra routes. The playground (App State, todos, the durable jobs, the pager, the prompt and `/demo`) is [`apps/dpi-demo-backend`](../dpi-demo-backend): it composes this device with the demo pack, and its tests live there. `just demo dev` runs that app; nothing under `src/` imports it.
+This app is the device alone: boot, HTTP/SSE, sessions, agents and durability. What the device serves beyond that comes from a **pack** (`src/pack.ts`), and this binary's default pack is empty: the coding tools, no agent documents and no extra routes. A pack imports the device through `src/pack-api.ts` only, which is the seam's public half and the file that becomes the package entry if a pack ever lives outside this repo. The playground (App State, todos, the durable jobs, the pager, the prompt and `/demo`) is [`apps/dpi-demo-backend`](../dpi-demo-backend): it composes this device with the demo pack, and its tests live there. `just demo dev` runs that app; nothing under `src/` imports it.
 
 ```
 client (hub / dpi-tui / curl) ──HTTP + SSE, Bearer──► dpi-backend ──► sessions/<id>/agent.sqlite (pi-durable)

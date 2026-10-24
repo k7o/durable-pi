@@ -14,7 +14,14 @@ Deleting `apps/dpi-demo-backend` breaks only its own tests and the suites that b
 
 ## The seam
 
-`src/pack.ts` is the whole contract. A pack supplies:
+The seam has two halves. `src/pack.ts` is the contract a pack **implements** — the table below. `src/pack-api.ts` is
+the API a pack **uses**: the device class, its stores, the document policy, the tool policy, the error shapes a route
+may throw and the types the device hands over, all re-exported from one file. A pack's `src/` imports that file and
+nothing else from the device, and `apps/dpi-backend/tests/layout.test.ts` fails the build if it reaches past it; its
+tests may still reach inside. `pack-api.ts` is also the future package entry, so the list of what a pack may touch is
+one file instead of an exports map written from scratch.
+
+A pack supplies:
 
 | Member | What it is | Demo app's answer |
 |---|---|---|

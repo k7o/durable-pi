@@ -6,10 +6,13 @@
 // its last run in the same shared document the demo does without importing the demo.
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { defineExtension } from "@earendil-works/pi-durable";
-import type { SharedState } from "../../dpi-backend/src/app-state.js";
-import { DEVICE_CAPABILITIES } from "../../dpi-backend/src/device.js";
-import type { ConversationDoc, DevicePack } from "../../dpi-backend/src/pack.js";
-import { writing } from "../../dpi-backend/src/tool-policy.js";
+import {
+  DEVICE_CAPABILITIES,
+  writing,
+  type SharedState,
+  type ConversationDoc,
+  type DevicePack,
+} from "../../dpi-backend/src/pack-api.js";
 import { STORIES_DOC, type StoriesDoc } from "../../dpi-sdk/src/news.js";
 import { createNewsDigest } from "./digest.js";
 import { Stories } from "./stories.js";

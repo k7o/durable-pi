@@ -2,8 +2,8 @@
 // interrupted result instead of paging twice.
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
+import { writing } from "../../../../../dpi-backend/src/pack-api.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
 import { pause } from "../pause.js";
 import { Pager } from "./pager.js";
