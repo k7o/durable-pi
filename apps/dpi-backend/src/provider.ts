@@ -25,7 +25,7 @@ export function isProviderId(value: string): value is ProviderId {
   return (PROVIDER_IDS as readonly string[]).includes(value);
 }
 
-/** Built-in pi-ai provider for an id. `faux` is installed separately by the store. */
+/** Built-in pi-ai provider for an id. `faux` is the demo app's registered test double, not a built-in. */
 export function providerFor(id: Exclude<ProviderId, "faux">) {
   switch (id) {
     case "openrouter":

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
-import type { Device } from "../src/device.js";
+import type { Device } from "../../dpi-backend/src/device.js";
 import { JOB_RUNS_DOC, type JobRunsDoc } from "../../dpi-sdk/src/jobs.js";
 import type { DemoPack } from "../src/playground/pack.js";
 import { faux, tempDevice, until } from "./helpers.js";
@@ -26,7 +26,7 @@ test("sessions, browse, names, forks, jobs, restart recovery, approval, interrup
     assert.deepEqual(start.dirs.map((d) => d.path), [t.work]);
     // A missing start dir is created when the store opens.
     const missingStart = join(t.root, "fresh", "start");
-    const other = await (await import("../src/device.js")).Device.open({ ...t.options, dataDir: join(t.root, "data2"), startDirs: [missingStart] });
+    const other = await (await import("../../dpi-backend/src/device.js")).Device.open({ ...t.options, dataDir: join(t.root, "data2"), startDirs: [missingStart] });
     assert.ok(existsSync(missingStart));
     await other.close();
     const listing = await store.browse(t.work);

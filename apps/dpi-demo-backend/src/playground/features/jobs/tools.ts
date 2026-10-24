@@ -5,7 +5,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { jobRunDone, type JobRun } from "../../../../../dpi-sdk/src/jobs.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../../tool-policy.js";
+import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
 import { Receipt } from "../receipt.js";
 import { jobDef, resolveJobInput } from "./defs.js";

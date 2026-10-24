@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Drive dpi-tui in tmux against a live device and grep the screen.
-#   tests/smoke.sh faux       boot a faux-provider dpi-backend (deterministic, no model costs)
+#   tests/smoke.sh faux       boot a faux-provider demo device (deterministic, no model costs)
 #   tests/smoke.sh <device>   a device from ~/.dpi/network.sqlite with its real model (e.g. mac-mini)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -38,7 +38,7 @@ if [ "$TARGET" = "faux" ]; then
   PORT=$(node -e 'const s=require("net").createServer().listen(0,()=>{console.log(s.address().port);s.close()})')
   TOKEN=$(openssl rand -hex 24)
   mkdir -p "$TMP/home" "$TMP/work/project"
-  (cd ../dpi-backend && exec env DPI_HOME="$TMP/home" DPI_ENV_FILE="$TMP/home/none.env" DPI_TOKEN="$TOKEN" DPI_PROVIDER=faux \
+  (cd ../dpi-demo-backend && exec env DPI_HOME="$TMP/home" DPI_ENV_FILE="$TMP/home/none.env" DPI_TOKEN="$TOKEN" DPI_PROVIDER=faux \
     DPI_START_DIRS="$TMP/work" DPI_DEVICE_NAME=faux-smoke node --import tsx src/main.ts --port "$PORT" --host 127.0.0.1 >"$TMP/backend.log" 2>&1) &
   BACKEND_PID=$!
   for _ in $(seq 1 100); do curl -sf "http://127.0.0.1:$PORT/healthz" >/dev/null && break; sleep 0.1; done

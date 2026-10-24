@@ -14,10 +14,11 @@ default:
 unit:
     cd apps/dpi-sdk && npm run check && npm test
     cd apps/dpi-backend && npm run check && npm test
+    cd apps/dpi-demo-backend && npm run check && npm test
     cd apps/dpi-playground && npm run build && npm run lint && npm test
     cd apps/dpi-tui && npm run check && npm test
 
-# Web UI suite against two faux devices (builds the UI first)
+# Web UI suite against two faux demo devices (builds the UI first)
 [no-cd]
 ui:
     cd apps/dpi-playground && npm run build && node tests/network-ui.mjs

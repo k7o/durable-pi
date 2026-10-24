@@ -1,8 +1,17 @@
+// Helpers for the demo app's tests: a temp demo device with the pack and the fake model, and the real demo binary on
+// a port. The device's own tests do not boot a server; everything that exercises the demo lives here.
+import { spawn, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
+import { createServer } from "node:net";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { Device } from "../src/device.js";
+import { join, resolve } from "node:path";
+import { Device } from "../../dpi-backend/src/device.js";
+import { faux, fauxModels } from "../src/faux.js";
 import { createDemoPack } from "../src/playground/pack.js";
+
+export { faux };
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function until(fn: () => Promise<boolean>, timeout = 15000, what = "condition") {
@@ -13,12 +22,17 @@ export async function until(fn: () => Promise<boolean>, timeout = 15000, what = 
   }
   throw Error(`Timed out waiting for ${what}`);
 }
-export const faux = { provider: "faux", modelId: "echo" };
 
+/** A temp data dir and working folder, opened as a demo device. Reopen with `open()` after a close. */
 export async function tempDevice() {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-be-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-demo-")));
   await mkdir(join(root, "work", "project", "nested"), { recursive: true });
-  const options = { dataDir: join(root, "data"), startDirs: [join(root, "work")], name: "test", provider: "faux" as const };
+  const options = {
+    dataDir: join(root, "data"),
+    startDirs: [join(root, "work")],
+    name: "test",
+    models: await fauxModels(),
+  };
   const pack = createDemoPack({ offline: true });
   return {
     root,
@@ -29,12 +43,6 @@ export async function tempDevice() {
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }
-
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { createServer } from "node:net";
-import { resolve } from "node:path";
-import { randomBytes } from "node:crypto";
 
 export async function freePort() {
   const probe = createServer();
@@ -47,26 +55,30 @@ export async function freePort() {
 
 export const newToken = () => `dpi_${randomBytes(32).toString("base64url")}`;
 
-/** Boot the real backend as a child process (faux provider, temp DPI_HOME). */
+/** Boot the real demo app as a child process (faux provider, temp DPI_HOME). */
 export async function bootServer(opts: { home: string; startDirs: string; token: string; port?: number; name?: string; cwd?: string }) {
   const port = opts.port ?? (await freePort());
   const base = `http://127.0.0.1:${port}`;
   let child: ChildProcess | undefined;
   let output = "";
   const start = async () => {
-    child = spawn(process.execPath, ["--import", "tsx", resolve(import.meta.dirname, "../src/main.ts"), "--port", String(port), "--host", "127.0.0.1"], {
-      env: {
-        ...process.env,
-        DPI_HOME: opts.home,
-        DPI_ENV_FILE: resolve(opts.home, "none.env"),
-        DPI_TOKEN: opts.token,
-        DPI_PROVIDER: "faux",
-        DPI_START_DIRS: opts.startDirs,
-        DPI_DEVICE_NAME: opts.name ?? "test-device",
+    child = spawn(
+      process.execPath,
+      ["--import", "tsx", resolve(import.meta.dirname, "../src/main.ts"), "--port", String(port), "--host", "127.0.0.1"],
+      {
+        env: {
+          ...process.env,
+          DPI_HOME: opts.home,
+          DPI_ENV_FILE: resolve(opts.home, "none.env"),
+          DPI_TOKEN: opts.token,
+          DPI_PROVIDER: "faux",
+          DPI_START_DIRS: opts.startDirs,
+          DPI_DEVICE_NAME: opts.name ?? "test-device",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        cwd: opts.cwd ?? resolve(import.meta.dirname, ".."),
       },
-      stdio: ["ignore", "pipe", "pipe"],
-      cwd: opts.cwd ?? resolve(import.meta.dirname, ".."),
-    });
+    );
     child.stdout?.on("data", (x) => (output += x));
     child.stderr?.on("data", (x) => (output += x));
     for (let i = 0; i < 200; i++) {

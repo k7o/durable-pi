@@ -3,7 +3,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../../tool-policy.js";
+import { writing } from "../../../../../dpi-backend/src/tool-policy.js";
 import type { Feature } from "../feature.js";
 import { Pager } from "./pager.js";
 

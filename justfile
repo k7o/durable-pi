@@ -6,8 +6,11 @@ set shell := ["bash", "-uc"]
 # Devices: up, deploy, status, logs, restart
 mod net 'just/net'
 
-# This machine's dpi-backend
+# This machine's dpi-backend: the bare device, no demo
 mod backend 'just/backend'
+
+# The demo device: dpi-backend plus the playground pack
+mod demo 'just/demo'
 
 # Web UI hub on port 4781
 mod hub 'just/hub'
@@ -32,6 +35,7 @@ default:
 install:
     cd apps/dpi-sdk && npm install --no-audit --no-fund
     cd apps/dpi-backend && npm install --no-audit --no-fund
+    cd apps/dpi-demo-backend && npm install --no-audit --no-fund
     cd apps/dpi-playground && npm install --no-audit --no-fund
     cd apps/dpi-tui && npm install --no-audit --no-fund
 

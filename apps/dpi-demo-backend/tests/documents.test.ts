@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Documents } from "../src/documents.js";
+import { Documents } from "../../dpi-backend/src/documents.js";
 import { createDemoPack } from "../src/playground/pack.js";
 
 test("documents: serves the pack's device document and refuses unknown kinds", async () => {

@@ -1,4 +1,4 @@
-// End-to-end check of the web client: a hub plus two faux-provider dpi-backends, driven by a
+// End-to-end check of the web client: a hub plus two faux-provider demo devices, driven by a
 // headless browser. Covers the network tree (devices from dpi-network.yaml), sessions via the directory browser,
 // streaming turns, every agent feature in the parity list, offline/recovery and narrow screens.
 //   npm run build && node tests/network-ui.mjs        (HEADED=1 to watch)
@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium, expect } = require("@playwright/test");
 const app = resolve(import.meta.dirname, "..");
-const backendDir = resolve(app, "../dpi-backend");
+const backendDir = resolve(app, "../dpi-demo-backend");
 const tmp = mkdtempSync(join(tmpdir(), "dpi-net-ui-"));
 const work = join(tmp, "work");
 mkdirSync(join(work, "project-alpha"), { recursive: true });

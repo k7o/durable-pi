@@ -35,9 +35,8 @@ import { Conversations } from "./conversations.js";
 import { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { ExtensionSelection } from "./extensions.js";
-import { Models } from "./models.js";
+import type { Models } from "./models.js";
 import { EMPTY_PACK, type DevicePack } from "./pack.js";
-import type { ProviderId } from "./provider.js";
 import { SessionRuntime } from "./session-runtime.js";
 import type { SpawnSession } from "./spawn.js";
 
@@ -52,9 +51,8 @@ export interface DeviceOptions {
   dataDir: string;
   startDirs: string[];
   name: string;
-  provider: ProviderId;
-  /** Overrides the provider's default model. */
-  defaultModel?: string;
+  /** The model policy the entry point built (`Models.open`, or `Models.from` for a test double). */
+  models: Models;
 }
 
 /** apps/dpi-backend/src → the checkout root. */
@@ -104,7 +102,7 @@ export class Device {
     const resolved = { ...options, dataDir: resolve(options.dataDir) };
     const changes = new ChangeFeed();
     const catalog = await Catalog.open(resolved.dataDir, changes);
-    const models = await Models.open(resolved.provider, resolved.defaultModel);
+    const { models } = resolved;
     const compaction = new Compaction(catalog, models);
     const device = new Device(resolved, catalog, changes, models, compaction, pack);
     try {

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { Catalog, type SessionRow } from "../src/catalog.js";
 import { ChangeFeed } from "../src/changes.js";
 import { Compaction } from "../src/compaction.js";
-import { Models } from "../src/models.js";
+import { fauxModels } from "./faux.js";
 import { SessionRuntime } from "../src/session-runtime.js";
 import { Documents } from "../src/documents.js";
 import { EMPTY_PACK } from "../src/pack.js";
@@ -18,7 +18,7 @@ async function tempRuntime() {
   await mkdir(work, { recursive: true });
   const changes = new ChangeFeed();
   const catalog = await Catalog.open(join(root, "data"), changes);
-  const models = await Models.open("faux");
+  const models = await fauxModels();
   const runtime = new SessionRuntime({
     catalog,
     models,

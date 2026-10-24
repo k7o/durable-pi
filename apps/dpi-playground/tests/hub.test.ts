@@ -12,7 +12,7 @@ import {
   until,
   faux,
   delay,
-} from "../../dpi-backend/tests/helpers.js";
+} from "../../dpi-demo-backend/tests/helpers.js";
 import { readSse } from "../../dpi-sdk/src/sse.js";
 import { NetworkRegistry } from "../../dpi-sdk/src/node/registry.js";
 import type { MuxFrame, NetworkDevice } from "../../dpi-sdk/src/api.js";

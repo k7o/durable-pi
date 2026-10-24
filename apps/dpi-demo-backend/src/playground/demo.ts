@@ -5,8 +5,8 @@
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation } from "@earendil-works/pi-durable";
 import type { StateChange } from "../../../dpi-sdk/src/app-state.js";
-import type { Device } from "../device.js";
-import { ApiFault, invalid } from "../errors.js";
+import type { Device } from "../../../dpi-backend/src/device.js";
+import { ApiFault, invalid } from "../../../dpi-backend/src/errors.js";
 import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";

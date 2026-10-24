@@ -1,4 +1,5 @@
-// A deterministic, free model for tests and offline demos (DPI_PROVIDER=faux).
+// A deterministic, free model for offline demos (DPI_PROVIDER=faux). It is the demo app's provider: the scripts below
+// name demo tools, so a bare device does not ship it. The device has its own, much smaller test double.
 //   "!<command>"   → one bash tool call running <command>, then a reply quoting its output
 //   "slow: <text>" → streams <text> slowly
 //   "spawn: <name>[ | <prompt>]" → one start_session call in the current folder
@@ -11,7 +12,7 @@
 //   "page: <summary>" → one ping_on_call_engineer call
 //   "Release check: …" (the release-check job's subagent) → one bash call
 //   anything else  → "Echo: <text>"
-import type { MutableModels } from "@earendil-works/pi-ai/models";
+import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
 import {
   fauxAssistantMessage,
   fauxProvider,
@@ -19,8 +20,30 @@ import {
   fauxToolCall,
   type FauxResponseFactory,
 } from "@earendil-works/pi-ai/providers/faux";
+import type { ModelInfo } from "../../dpi-sdk/src/api.js";
+import { Models } from "../../dpi-backend/src/models.js";
 
-export const fauxModels = [{ id: "echo", name: "Faux Echo" }] as const;
+export const faux = { provider: "faux", modelId: "echo" } as const;
+
+const NAMES = [{ id: "echo", name: "Faux Echo" }] as const;
+
+const FAUX_INFO: ModelInfo[] = NAMES.map((m) => ({
+  id: m.id,
+  provider: "faux",
+  name: m.name,
+  tier: "T",
+  icon: "lab.png",
+  contextWindow: 128000,
+  reasoning: false,
+  cost: { input: 0, output: 0 },
+}));
+
+/** The demo app's model policy for `DPI_PROVIDER=faux`: the one deterministic model, no network. */
+export async function fauxModels(): Promise<Models> {
+  const engine = createModels();
+  installFaux(engine);
+  return Models.from({ provider: "faux", engine, models: FAUX_INFO, defaultModel: faux.modelId });
+}
 
 type AnyMessage = { role: string; content?: unknown; toolCallId?: string };
 const textOf = (m?: AnyMessage) =>
@@ -33,7 +56,7 @@ const textOf = (m?: AnyMessage) =>
 export function installFaux(models: MutableModels) {
   const handle = fauxProvider({
     provider: "faux",
-    models: fauxModels.map((m) => ({ id: m.id, name: m.name, contextWindow: 128000, maxTokens: 8192 })),
+    models: NAMES.map((m) => ({ id: m.id, name: m.name, contextWindow: 128000, maxTokens: 8192 })),
     tokensPerSecond: 400,
   });
   const reply: FauxResponseFactory = (context) => {

@@ -4,42 +4,44 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import type { ModelRef } from "@earendil-works/pi-durable";
 import type { ModelInfo } from "../../dpi-sdk/src/api.js";
 import { invalid } from "./errors.js";
-import { fauxModels, installFaux } from "./playground/faux.js";
 import { curatedByProvider, defaultModelByProvider, describeModel } from "./model-catalog.js";
 import { providerFor, type ProviderId } from "./provider.js";
+
+type Engine = ReturnType<typeof createModels>;
 
 export class Models {
   private constructor(
     readonly provider: ProviderId,
     readonly list: ModelInfo[],
     readonly defaultModelId: string,
-    readonly engine: ReturnType<typeof createModels>,
+    readonly engine: Engine,
   ) {}
 
+  /** A provider this build ships: it is registered here, and its picker list is curated. */
   static async open(provider: ProviderId, defaultModel?: string): Promise<Models> {
+    if (provider === "faux")
+      throw Error("faux is the demo app's model. Run the demo app (`just demo dev`), or set a real DPI_PROVIDER.");
     const engine = createModels();
-    if (provider === "faux") installFaux(engine);
-    else {
-      const built = providerFor(provider);
-      const shortlist = curatedByProvider[provider];
-      // A shortlist provider keeps only its reviewed models; the rest list their whole catalog.
-      engine.setProvider(
-        shortlist
-          ? { ...built, getModels: () => built.getModels().filter((m) => shortlist.some((c) => c.id === m.id)) }
-          : built,
-      );
-    }
-    const defaultId = provider === "faux" ? fauxModels[0].id : defaultModel ?? defaultModelByProvider[provider];
-    return new Models(provider, await listModels(provider, engine), defaultId, engine);
+    const built = providerFor(provider);
+    const shortlist = curatedByProvider[provider];
+    // A shortlist provider keeps only its reviewed models; the rest list their whole catalog.
+    engine.setProvider(
+      shortlist
+        ? { ...built, getModels: () => built.getModels().filter((m) => shortlist.some((c) => c.id === m.id)) }
+        : built,
+    );
+    return new Models(provider, await listModels(provider, engine), defaultModel ?? defaultModelByProvider[provider], engine);
+  }
+
+  /** A provider the caller registered in `engine` and described itself, such as a test double or an offline demo. */
+  static from(source: { provider: ProviderId; engine: Engine; models: ModelInfo[]; defaultModel: string }): Models {
+    return new Models(source.provider, source.models, source.defaultModel, source.engine);
   }
 
   /** A stored model from another provider falls back to this device's default. */
   routed(model?: ModelRef): ModelRef {
-    const fallback = this.defaultModelId;
-    if (this.provider === "faux")
-      return { provider: "faux", modelId: fauxModels.some((m) => m.id === model?.modelId) ? model!.modelId : fallback };
     const known = model?.provider === this.provider && !!this.engine.getModel(this.provider, model.modelId);
-    return { provider: this.provider, modelId: known ? model!.modelId : fallback };
+    return { provider: this.provider, modelId: known ? model!.modelId : this.defaultModelId };
   }
 
   validate(model: unknown): ModelRef {
@@ -56,18 +58,7 @@ export class Models {
   }
 }
 
-async function listModels(provider: ProviderId, engine: ReturnType<typeof createModels>): Promise<ModelInfo[]> {
-  if (provider === "faux")
-    return fauxModels.map((m) => ({
-      id: m.id,
-      provider: "faux",
-      name: m.name,
-      tier: "T",
-      icon: "lab.png",
-      contextWindow: 128000,
-      reasoning: false,
-      cost: { input: 0, output: 0 },
-    }));
+async function listModels(provider: ProviderId, engine: Engine): Promise<ModelInfo[]> {
   // Authorization resolves for every provider, so a device without a key lists no models.
   const available = await engine.getAvailable(provider, { signal: AbortSignal.timeout(10000) });
   const shortlist = curatedByProvider[provider];

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { Catalog, type SessionRow } from "../src/catalog.js";
 import { ChangeFeed } from "../src/changes.js";
 import { Compaction } from "../src/compaction.js";
-import { Models } from "../src/models.js";
+import { fauxModels } from "./faux.js";
 
 const row: SessionRow = {
   id: "s1",
@@ -23,7 +23,7 @@ async function temp() {
   const changes = new ChangeFeed();
   const catalog = await Catalog.open(dir, changes);
   catalog.insertSession(row);
-  const models = await Models.open("faux");
+  const models = await fauxModels();
   return {
     catalog,
     compaction: new Compaction(catalog, models),

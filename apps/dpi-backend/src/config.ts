@@ -18,6 +18,8 @@ export interface BackendConfig {
   provider: ProviderId;
   /** The model a session starts on when it does not name one. */
   defaultModel: string;
+  /** A DevicePack module path for the device binary; empty means the bare device. */
+  pack?: string;
   token: string;
 }
 
@@ -50,6 +52,7 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Bac
       .map((p) => resolve(expand(p))),
     provider,
     defaultModel: flag("--model", env.DPI_MODEL ?? defaultModelByProvider[provider]),
+    pack: env.DPI_PACK,
     token: env.DPI_TOKEN ?? "",
   };
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535)

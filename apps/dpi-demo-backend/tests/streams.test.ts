@@ -6,7 +6,7 @@ import type { Response } from "express";
 import { DpiClient } from "../../dpi-sdk/src/client.js";
 import { AgentModel, SessionModel } from "../../dpi-sdk/src/models.js";
 import type { Frame } from "../../dpi-sdk/src/api.js";
-import { openSse } from "../src/streams.js";
+import { openSse } from "../../dpi-backend/src/streams.js";
 import { bootServer, delay, faux, newToken, tempDevice, until } from "./helpers.js";
 
 function collect(stream: AsyncGenerator<Frame>, sink: Frame[], onFrame?: (f: Frame) => void) {
