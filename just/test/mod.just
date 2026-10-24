@@ -18,6 +18,11 @@ unit:
     cd apps/dpi-playground && npm run build && npm run lint && npm test
     cd apps/dpi-tui && npm run check && npm test
 
+# Every relative link and image in the tracked Markdown resolves
+[no-cd]
+docs:
+    node scripts/docs.mjs
+
 # Web UI suite against two faux demo devices (builds the UI first)
 [no-cd]
 ui:

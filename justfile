@@ -39,5 +39,5 @@ install:
     cd apps/dpi-playground && npm install --no-audit --no-fund
     cd apps/dpi-tui && npm install --no-audit --no-fund
 
-# Type checks and unit tests, every app
-check: test::unit
+# Type checks, unit tests and the documentation links, every app
+check: test::unit test::docs
