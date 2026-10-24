@@ -19,9 +19,9 @@ Deleting `apps/dpi-demo-backend` breaks only its own tests and the suites that b
 | Member | What it is | Demo app's answer |
 |---|---|---|
 | `docs` | conversation documents, in seeding order | `demo.workspace`, `demo.job-runs`, `demo.todos` |
-| `deviceDocs` | device-scoped documents | `app.shared-state` |
+| `deviceDocs` | device-scoped documents a pack adds | none — App State is the device's own device document |
 | `open` / `close` | the pack's contribution to the device's stores | seeds the App State keys the pack owns; the device opens and locks `app-state.sqlite` and tells the change feed |
-| `createSession({ spawn })` | per-session extensions, in install order | the one `playground` extension (11 tools) |
+| `createSession({ spawn, appState })` | per-session extensions, in install order | the one `playground` extension (9 tools) |
 | `sessionExtensions` | custom extensions, installed unselected | `system-prompts`, `jev-damage-control` |
 | `routes(device)` | extra `/v1` routes, behind the token | `POST .../demo/state`, `.../demo/jobs`, `.../demo/jobs/:taskId/approval` |
 | `info()` | fields merged into `GET /v1/device` | `jobs`, and the `demo`/`jobs` capabilities |
@@ -38,8 +38,9 @@ routes.ts / streams.ts       HTTP v1 and SSE; a session ref and an agent ref bec
     agents.ts                resolve, list, create, fork, configure, agent projections
     conversations.ts         send, abort, withdraw, entries, transcript, tasks, task labels
     extensions.ts            which custom extensions an agent selected
+    state-tools.ts           read_state and update_state, the device's tools for its own App State
     documents.ts             GET .../docs/:kind, and the one seeding list (from the pack)
-    session-runtime.ts       one Harness per open session; installs the pack's extensions
+    session-runtime.ts       one Harness per open session; installs the device tools, then the pack's extensions
       harness                pi-durable: entries, documents, tasks and submissions, one commit each
         pack tools           a tool runs in its own task and commits its effect before answering
     models.ts                one provider per device, the curated picker list, routing, validation
@@ -61,7 +62,7 @@ src/playground/pack.ts       ...is the pack; this table is the rest of src/playg
   addons.ts                  system-prompts and jev-damage-control
   features/app-state/        the workspace document the pack seeds from App State
   demo.ts                    the three /demo use cases (also used by its tests)
-  features/                  app-state, todos, jobs, history, sessions, side-effects
+  features/                  workspace doc, todos, jobs, history, sessions, side-effects
   prompt.ts  history.ts  jev.ts
 tests/                       the demo half of the suite, plus helpers that boot the real binary
 ```

@@ -6,12 +6,11 @@
 /**
  * Tool descriptions by tool name, in the order `createPlayground` offers the tools. The contract test asserts that
  * order against the offered tools, so a stale or reordered key fails the suite instead of the prompt.
+ *
+ * `read_state` and `update_state` are not here: they are the device's tools (`apps/dpi-backend/src/state-tools.ts`),
+ * installed before the pack's, because App State is the device's document and every app gets that pair.
  */
 export const TOOL_DESCRIPTIONS = {
-  read_state:
-    "Read the shared App State object used by every session, conversation and fork, or a field at a JSON Pointer path. Empty path reads the whole object.",
-  update_state:
-    'CRUD the same shared App State for every agent and fork in this demo. create adds a new field, update replaces an existing value, delete removes it, increment adds a signed number. value_json must be JSON-encoded text: 3 for a number, true for a boolean, "hello" (including quotes) for a string, {"enabled":true} for an object, or [1,2] for an array. Omit value_json for delete. Use JSON Pointer paths: /counter, /settings/enabled, /notes/- to append. Escape ~ as ~0 and / as ~1. Empty path with update replaces the whole root object, with delete clears it. Read first with read_state. UI controls update live. Changes are atomic and replay-safe.',
   todo:
     "Manage this conversation's durable todo list (document demo.todos). list shows every item with its id, open and done counts. add needs text. complete, reopen and remove need an item id from list. Every change is committed atomically with the tool result and survives disconnects and restarts.",
   list_durable_jobs:

@@ -123,7 +123,7 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
         install: ({ sessionId }) => {
           const jobs = createJobs({ shared: requireShared(), sessionId, todos: Todos });
           jobsBySession.set(sessionId, jobs);
-          return [createPlayground(requireShared(), sessionId, spawn, jobs)];
+          return [createPlayground(sessionId, spawn, jobs)];
         },
       };
     },

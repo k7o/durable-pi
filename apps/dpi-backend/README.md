@@ -97,7 +97,7 @@ Templates live in [`deploy/`](deploy/). The operator skill [`.claude/skills/agen
 
 Any device id from `dpi-network.yaml` whose backend runs as a service works. `DEVICE=mac-mini` below.
 
-The demo tools (`search_history`, the durable jobs, the todos, the pager, and the `read_state`/`update_state` pair that edits App State) come from the demo pack, which `just net deploy` installs and enables by default. App State itself is the device's, and every pack can read and change it. A device with `DPI_PACK:` empty in its yaml serves the bare device: sessions and agents work, those tools do not exist, and the steps that mention them below do not apply.
+App State and its two tools, `read_state` and `update_state`, are the device's: every device installs them, and a pack reads and changes the same document through the store it is handed. The demo tools (`search_history`, the durable jobs, the todos, the pager) come from the demo pack, which `just net deploy` installs and enables by default. A device with `DPI_PACK:` empty in its yaml serves the bare device: sessions and agents work, those tools do not exist, and the steps that mention them below do not apply.
 
 ```bash
 just net status                                      # 1. every device online

@@ -29,6 +29,7 @@ import type { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import type { SharedState } from "./app-state.js";
 import { lockFile } from "./locks.js";
+import { stateTools } from "./state-tools.js";
 import type { Models } from "./models.js";
 import type { DevicePack } from "./pack.js";
 import type { SpawnSession } from "./spawn.js";
@@ -122,9 +123,13 @@ export class SessionRuntime {
       const registry = createRegistry();
       const coding = withWrites(CodingTools, CODING_WRITES);
       registry.install(coding);
+      // App State is the device's document, so its two tools are the device's too: every agent on every device gets
+      // them, and a pack never has to copy this pair to reach its own device's state.
+      const state = stateTools(this.options.appState, row.id);
+      registry.install(state);
       const session = this.options.pack.createSession({ spawn: this.options.spawn, appState: this.options.appState });
-      // The pack's extensions in install order: its tools first, then the agent's own system extensions.
-      const installed = [coding, ...session.install({ sessionId: row.id })];
+      // The pack's extensions in install order: device tools first, then the pack's, then the agent's own system ones.
+      const installed = [coding, state, ...session.install({ sessionId: row.id })];
       for (const extension of installed) registry.install(extension);
       // Custom extensions are installed but not selected: an agent turns them on in its own selection.
       for (const addon of this.options.pack.sessionExtensions?.list ?? []) registry.install(addon.extension);

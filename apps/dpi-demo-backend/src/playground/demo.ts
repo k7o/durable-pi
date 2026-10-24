@@ -11,6 +11,7 @@ import { ApiFault, invalid } from "../../../dpi-backend/src/errors.js";
 import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";
+import { STATE_ENTRY_KIND } from "../../../dpi-backend/src/state-tools.js";
 import { APP_STATE_DOC } from "../../../dpi-sdk/src/app-state.js";
 import type { SharedState } from "../../../dpi-backend/src/app-state.js";
 
@@ -38,7 +39,7 @@ export class DemoEndpoints {
     await c.commit(
       (tx) =>
         tx.appendEntry(c.id, {
-          kind: "demo.state-change",
+          kind: STATE_ENTRY_KIND,
           data: { text: `Shared App State: ${change.operation} ${change.path || "/"}` },
         }),
       ctx,

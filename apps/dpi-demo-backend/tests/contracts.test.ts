@@ -12,7 +12,6 @@ import { createPlayground } from "../src/playground/playground.js";
 import { JOB_DEFS } from "../src/playground/features/jobs/defs.js";
 import type { Jobs } from "../src/playground/features/jobs/engine.js";
 import { TOOL_DESCRIPTIONS } from "../src/playground/prompt.js";
-import type { SharedState } from "../../dpi-backend/src/app-state.js";
 
 /**
  * The assembled extension, with every argument that assembly is not allowed to touch replaced by a throwing stub.
@@ -24,7 +23,6 @@ function playground() {
     throw Error("contract snapshot: this argument is not exercised by assembly");
   };
   return createPlayground(
-    refuse as unknown as SharedState,
     "contract-session",
     refuse as unknown as SpawnSession,
     { defs: JOB_DEFS, tasks: [], start: refuse } as unknown as Jobs,
@@ -35,8 +33,6 @@ test("contracts: the extension offers the same tools in the same order", () => {
   assert.deepEqual(
     playground().tools?.map((tool) => tool.name),
     [
-      "read_state",
-      "update_state",
       "todo",
       "list_durable_jobs",
       "run_durable_job",

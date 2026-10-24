@@ -129,7 +129,7 @@ const entryClass = (item: TranscriptItem) =>
     />
     <template v-else
       ><div class="event-line">
-        <Braces v-if="item.entryKind === 'demo.state-change'" :size="18" /><Layers
+        <Braces v-if="item.entryKind === 'app-state.change' || item.entryKind === 'demo.state-change'" :size="18" /><Layers
           v-else
           :size="18"
         /><span>{{ item.text }}</span

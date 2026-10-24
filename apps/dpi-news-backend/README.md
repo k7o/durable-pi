@@ -42,8 +42,8 @@ DPI_PACK=/opt/durable-pi/apps/dpi-news-backend/src/pack.ts dpi-backend
 - **No GUI.** The playground shell is the demo's; a news pane would be the first capability-gated component. Until
   then the TUI and `curl` are the clients.
 - **No routes.** The device's `/v1` surface plus the docs route is enough for a client to read this app.
-- **No App State tools.** The store is the device's, so the digest writes `/news` through it, but `read_state` and
-  `update_state` are still the demo pack's tools. A generic pair in the device is the next step.
+- **No App State tools of its own.** The device installs `read_state` and `update_state` on every device, so the agent
+  here can read and change App State, including the `/news` key this app's digest writes.
 - **No model of its own.** It uses the device's offline double, or the real provider you configure.
 
 ## What the device now provides, because this app needed it

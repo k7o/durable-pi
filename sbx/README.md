@@ -53,7 +53,7 @@ durable attach      # dpi-tui on a session in the workspace
 durable shell       # a login shell in the workspace
 ```
 
-The demo tools (`update_state`, `run_durable_job`, todo documents) come from the pack, not from
+The demo tools (`run_durable_job`, todo documents) come from the pack, not from
 the device: `DPI_PACK=` empty in the sandbox's environment serves the bare device. That switch
 only works because the descriptor's startup hook lists `DPI_PACK` — hook env is deny-by-default,
 so an unlisted variable never reaches `durable start`. `just kit test` covers the provider matrix

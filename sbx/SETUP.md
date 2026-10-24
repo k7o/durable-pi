@@ -23,8 +23,9 @@ Nothing on the host calls a model. Nothing in a sandbox holds a key.
 boot, HTTP/SSE, sessions, agents, durability) and the playground demo (`apps/dpi-demo-backend`:
 App State, todos, the four durable jobs, the pager, the extra tools and the `/demo` routes).
 `durable start` points `DPI_PACK` at the demo's pack, so a sandbox is a demo device by default —
-the tools you see in the browser include `update_state` and `run_durable_job`. A bare device is
-`DPI_PACK: ""` in the environment file (step 5); the demo app's faux model goes with the pack.
+the tools you see in the browser include `run_durable_job`. A bare device is
+`DPI_PACK: ""` in the environment file (step 5); it keeps App State and `read_state`/`update_state`
+(every device has those), and loses the demo's tools and its faux model.
 
 ## 1. Prerequisites on the host
 
