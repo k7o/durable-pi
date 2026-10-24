@@ -1,6 +1,18 @@
 // The run record: the conversation document `demo.job-runs` and the helpers that keep it consistent. One run is one
 // pi-durable task whose task id is also the run id; this record says what happened in it, and it is what
 // check_durable_job and the Tasks tab read.
+//
+// One run is stored in three places, and they answer different questions. Read them in this order:
+//
+//   the pi-durable task      where the run is: one task per run, its checkpoint { phase, iteration, data }. This is
+//                            the only thing that resumes work, and the task id is the run id (engine.ts).
+//   this document            what happened: one JobRun per task id holding phases, steps, approval and result. It is
+//                            pruned to MAX_RUNS in engine.ts, newest kept.
+//   App State (resultPath)   the answer a client reads. Written by a phase, never by the engine, so a run that fails
+//                            before its last phase leaves the previous run's result in place.
+//
+// A phase is a checkpoint. A step is one recorded action inside it: command, tool, agent, state, approval, checkpoint
+// or note.
 import { defineDoc, type ConversationId, type RunningTask, type TaskId, type TaskRuntime, type Tx } from "@earendil-works/pi-durable";
 import { JOB_RUNS_DOC, type JobPhaseRun, type JobRun, type JobRunsDoc, type JobStep } from "../../../../dpi-sdk/src/jobs.js";
 import type { Data, Values } from "./types.js";
