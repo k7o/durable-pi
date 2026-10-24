@@ -7,7 +7,7 @@ import { THINKING_LEVELS } from "../../../../../dpi-sdk/src/api.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
 import { writing } from "../../../tool-policy.js";
 import type { Feature } from "../feature.js";
-import type { SpawnSession } from "./types.js";
+import type { SpawnSession } from "../../../spawn.js";
 
 export function sessionTools(sessionId: string, spawn: SpawnSession): Feature {
   const subagent = defineTool({

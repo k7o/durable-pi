@@ -10,18 +10,11 @@ import { notFound } from "./errors.js";
 import { WORKSPACE_DOC, Workspace } from "./playground/features/app-state/doc.js";
 import { JobRuns } from "./playground/features/jobs/record.js";
 import { Todos } from "./playground/features/todos/doc.js";
+import type { ConversationDoc } from "./pack.js";
 import type { SharedState } from "./playground/shared-state.js";
 
 export const APP_STATE_DOC = "app.shared-state";
 export const DEVICE_DOC_KINDS = [APP_STATE_DOC];
-
-type ConversationDoc = {
-  readonly kind: string;
-  /** What a client sees before the document is written for the first time. */
-  readonly empty: unknown;
-  readonly seed: (tx: Tx, conversationId: ConversationId) => Promise<unknown>;
-  readonly read: (h: Harness, conversationId: ConversationId) => Promise<unknown>;
-};
 
 /**
  * Conversation documents in seeding order: Workspace, JobRuns, Todos. The seeder has always created them in that

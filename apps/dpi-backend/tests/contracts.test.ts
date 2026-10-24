@@ -7,7 +7,7 @@ import express from "express";
 import { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "../src/documents.js";
 import { v1 } from "../src/routes.js";
 import { tempDevice } from "./helpers.js";
-import type { SpawnSession } from "../src/playground/features/sessions/types.js";
+import type { SpawnSession } from "../src/spawn.js";
 import { createPlayground } from "../src/playground/playground.js";
 import { JOB_DEFS } from "../src/playground/features/jobs/defs.js";
 import type { Jobs } from "../src/playground/features/jobs/engine.js";

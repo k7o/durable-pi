@@ -31,7 +31,7 @@ import type { Compaction } from "./compaction.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { seedConversation } from "./documents.js";
 import { createPlayground } from "./playground/playground.js";
-import type { SpawnSession } from "./playground/features/sessions/types.js";
+import type { SpawnSession } from "./spawn.js";
 import { createJobs, type Jobs } from "./playground/features/jobs/engine.js";
 import { JobRuns } from "./playground/features/jobs/record.js";
 import { lockFile } from "./locks.js";

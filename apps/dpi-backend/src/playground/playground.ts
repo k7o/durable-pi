@@ -8,7 +8,7 @@ import { historyTools } from "./features/history/tool.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { jobsTools } from "./features/jobs/tools.js";
 import { sessionTools } from "./features/sessions/tools.js";
-import type { SpawnSession } from "./features/sessions/types.js";
+import type { SpawnSession } from "../spawn.js";
 import { pager } from "./features/side-effects/tool.js";
 import { todos } from "./features/todos/tools.js";
 import { PLAYGROUND_SECTION } from "./prompt.js";
