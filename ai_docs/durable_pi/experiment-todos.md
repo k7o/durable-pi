@@ -310,8 +310,9 @@ The experiment is merged into `deploy/sbx`. Its original commits are `7709cb7` a
 Reverting is a subtraction at the pack edge, not a branch operation, and nothing in `apps/dpi-backend`
 has to change:
 
-1. Drop the `Todos` entry from the conversation documents in `pack.ts` and the `todos` argument in
-   `createJobs`, then delete `features/todos/`.
+1. Drop the `Todos` entry from the conversation documents in
+   `apps/dpi-demo-backend/src/playground/pack.ts` and the `todos` argument in `createJobs`, then delete
+   `apps/dpi-demo-backend/src/playground/features/todos/`.
 2. Delete `apps/dpi-demo-backend/src/playground/features/jobs/todo-digest.ts` and its entry in the job
    list, and the `todos()` and `saveTodoDigest()` helpers in
    `apps/dpi-demo-backend/src/playground/features/jobs/phase.ts`.
