@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.DurableTask;
+using DurableTask.Core.History;
 using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
 using Microsoft.DurableTask.Client.AzureManaged;
@@ -22,9 +23,52 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // The model is behind IChatClient. The default is scripted so the failure tests run with no
 // credentials; point Pilot__ChatClient at a real client to demo with a live model.
+AITool[] incidentTools =
+[
+    AIFunctionFactory.Create(
+        (string since) => IncidentTools.ReadLogs(since),
+        name: IncidentTools.ReadLogsName,
+        description: "Read the production log stream and return matching entries."),
+    AIFunctionFactory.Create(
+        (string change) => IncidentTools.ApplyFix(change),
+        name: IncidentTools.ApplyFixName,
+        description: "Apply the prepared fix on a branch and return the commit id."),
+];
+
+// The harness supplies todo state, compaction, tool approval and tracing around the same
+// IChatClient. Everything it adds must survive serialization as part of the durable session.
+#if PILOT_HARNESS
+string defaultAgentKind = "harness";
+#else
+string defaultAgentKind = "plain";
+#endif
+
+// PILOT_AGENT=plain uses the bare chat client agent; anything else uses the harness.
+string agentKind = (Environment.GetEnvironmentVariable("PILOT_AGENT") ?? defaultAgentKind).Trim();
+bool withTools = (Environment.GetEnvironmentVariable("PILOT_TOOLS") ?? "1").Trim() != "0";
+
+AITool[] tools = withTools ? incidentTools : [];
+
+#if PILOT_HARNESS
+AIAgent agent = agentKind.Equals("plain", StringComparison.OrdinalIgnoreCase)
+    ? new ScriptedChatClient().AsAIAgent(
+        instructions: "You are an incident agent. Investigate, fix, then wait for a human before deploying.",
+        name: AgentName,
+        tools: tools)
+    : new ScriptedChatClient().AsHarnessAgent(HarnessOptions(tools));
+#else
+if (!agentKind.Equals("plain", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "The harness is compiled out. Build with -p:PilotHarness=true to reproduce the stall; "
+        + "see pilot/FINDINGS.md. Use PILOT_AGENT=plain for the working configuration.");
+}
+
 AIAgent agent = new ScriptedChatClient().AsAIAgent(
     instructions: "You are an incident agent. Investigate, fix, then wait for a human before deploying.",
-    name: AgentName);
+    name: AgentName,
+    tools: tools);
+#endif
 
 builder.Services.ConfigureDurableAgents(
     options => options.AddAIAgent(agent, timeToLive: TimeSpan.FromHours(1)),
@@ -64,6 +108,23 @@ app.MapPost("/runs", async (StartRunRequest request, DurableTaskClient client) =
         new StartOrchestrationOptions { InstanceId = runId });
 
     return Results.Ok(new { runId, created = true, state = "Scheduled" });
+});
+
+// Debug surface for the pilot: raw orchestration history, so a stalled run can be explained.
+app.MapGet("/runs/{runId}/history", async (string runId, DurableTaskClient client) =>
+{
+    IList<HistoryEvent> history = await client.GetOrchestrationHistoryAsync(runId);
+    return Results.Ok(history.Select(entry => new
+    {
+        type = entry.EventType.ToString(),
+        name = entry switch
+        {
+            EventRaisedEvent raised => raised.Name,
+            TaskScheduledEvent scheduled => scheduled.Name,
+            ExecutionStartedEvent started => started.Name,
+            _ => null,
+        },
+    }));
 });
 
 // Read a run. Safe to poll; it is the only source of truth a client gets.
@@ -141,6 +202,34 @@ app.MapGet("/runs/{runId}/events", async (string runId, DurableTaskClient client
         await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
     }
 });
+
+#if PILOT_HARNESS
+// PILOT_DISABLE=filememory,todo,... switches harness capabilities off, so a stall can be
+// bisected to the capability that causes it.
+static HarnessAgentOptions HarnessOptions(AITool[] tools)
+{
+    string[] disabled = (Environment.GetEnvironmentVariable("PILOT_DISABLE") ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    bool Off(string capability) => disabled.Contains(capability, StringComparer.OrdinalIgnoreCase);
+
+    return new HarnessAgentOptions
+    {
+        Name = AgentName,
+        HarnessInstructions = "You are an incident agent. Investigate, fix, then wait for a human before deploying.",
+        ChatOptions = new ChatOptions { Tools = tools },
+        MaximumIterationsPerRequest = 8,
+        DisableFileMemory = Off("filememory"),
+        DisableTodoProvider = Off("todo"),
+        DisableAgentModeProvider = Off("mode"),
+        DisableToolAutoApproval = Off("autoaproval"),
+        DisableOpenTelemetry = Off("otel"),
+        DisableCompaction = Off("compaction"),
+        DisableWebSearch = Off("websearch"),
+        DisableAgentSkillsProvider = Off("skills"),
+    };
+}
+#endif
 
 await app.RunAsync();
 

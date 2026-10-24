@@ -26,9 +26,13 @@ pilot/
   tests/Pilot.FailureTests/ the kill-and-resume tests that define acceptance
 ```
 
-Packages: `Microsoft.Agents.AI`, `Microsoft.Agents.AI.Harness`,
-`Microsoft.Agents.AI.DurableTask`, `Microsoft.DurableTask.Worker.AzureManaged`,
-`Microsoft.DurableTask.Client.AzureManaged`. Target `net10.0` (constraint, see ADR 0001).
+Only `Pilot.AgentHost` exists so far; the other three are the remaining slices.
+
+Packages: `Microsoft.Agents.AI`, `Microsoft.Agents.AI.DurableTask`,
+`Microsoft.DurableTask.Worker.AzureManaged`, `Microsoft.DurableTask.Client.AzureManaged`, and
+optionally `Microsoft.Agents.AI.Harness`. Target `net10.0` (constraint, see ADR 0001). Package
+versions are pinned deliberately: the durable extension needs `Microsoft.Agents.AI` 1.13.0, and the
+harness pulls 1.26.0, which breaks runs silently. See [FINDINGS.md](FINDINGS.md).
 
 ## Design decisions that must be settled before code
 
@@ -86,9 +90,36 @@ The pilot is done when these pass against a killed process, with the emulator ru
 # emulator
 docker run -d --name dtsemulator -p 8080:8080 -p 8082:8082 mcr.microsoft.com/dts/dts-emulator:latest
 
-# host (once written)
-dotnet run --project src/Pilot.AgentHost
+# the acceptance criteria: builds, starts the emulator and host, runs all six tests (~25s)
+./run-failure-tests.sh
+
+# or host by hand (working configuration: pinned Agents.AI 1.13, no harness)
+dotnet build src/Pilot.AgentHost
+./src/Pilot.AgentHost/bin/Debug/net10.0/Pilot.AgentHost --urls http://127.0.0.1:5099
+
+# admit a run, read it, approve the deploy, watch it
+curl -X POST localhost:5099/runs -H 'content-type: application/json' \
+  -d '{"run_key":"demo1","incident":"guest checkout 500s"}'
+curl localhost:5099/runs/run-demo1
+curl localhost:5099/runs/run-demo1/history        # raw orchestration history, for stalls
+curl -N localhost:5099/runs/run-demo1/events      # SSE
+curl -X POST localhost:5099/runs/run-demo1/approvals \
+  -H 'content-type: application/json' -d '{"approved":true,"feedback":"ship it"}'
 ```
 
-Model access is behind `IChatClient`. The default is a deterministic scripted client so
-the failure tests need no credentials; Azure OpenAI is wired by config for demos.
+Switches, all environment variables:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PILOT_AGENT` | `plain` | `harness` requires `-p:PilotHarness=true` and currently stalls |
+| `PILOT_TOOLS` | `1` | `0` removes the tool loop |
+| `PILOT_DISABLE` | empty | harness capabilities to switch off, for bisecting a stall |
+| `DURABLE_TASK_SCHEDULER_CONNECTION_STRING` | emulator | point at a real scheduler |
+
+Model access is behind `IChatClient`. The default is a deterministic scripted client that issues
+real tool calls, so the failure tests need no credentials; swapping in Azure OpenAI is a one-line
+change where the client is constructed.
+
+**Do not add `Microsoft.Agents.AI.Harness` to the default build.** It drags `Microsoft.Agents.AI`
+from 1.13 to 1.26 and every run then stalls at the first agent turn with no error. See
+[FINDINGS.md](FINDINGS.md).

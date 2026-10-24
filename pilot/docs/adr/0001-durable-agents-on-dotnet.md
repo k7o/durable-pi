@@ -39,6 +39,12 @@ gets with Durable Functions if the pilot graduates.
   pilot cannot run on a .NET 8 shop baseline as-is.
 - **The durable-agent path is prerelease** while the harness and DTS clients are GA. Expect
   churn; pin versions and budget one upgrade pass.
+- **The harness cannot be combined with durable agents today.** `Microsoft.Agents.AI.Harness`
+  requires `Microsoft.Agents.AI` 1.26.0; the durable extension was compiled against 1.13.0. NuGet
+  resolves the bump silently, and every run then stalls at the first agent turn waiting on an event
+  name that is recomputed differently. The pilot therefore runs the bare agent and treats the
+  harness as a follow-on once the durable extension catches up. Measured, not assumed: see
+  `pilot/FINDINGS.md`.
 - **Orchestrator determinism is now our problem.** No `DateTime.Now`, no I/O, no
   non-deterministic loops in orchestrator code. Activity boundaries are where effects and
   clock reads live.
