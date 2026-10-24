@@ -97,7 +97,6 @@ export const phaseApi = (deps: JobsDeps, def: JobDef, index: number, task: Runni
         (await tx.doc(deps.todos, task.conversationId)).digest = digest;
         return undefined;
       }, ctx),
-    sleepUntil: (at) => runtime.sleep(at, ctx),
     agent: async (prompt) => {
       let childId = 0;
       const stepId = `${spec.id}:${cp.iteration}:agent`;
@@ -182,7 +181,7 @@ export const phaseApi = (deps: JobsDeps, def: JobDef, index: number, task: Runni
         runtime.signal.throwIfAborted();
         done = await Promise.race([
           settled,
-          runtime.sleep(runtime.now() + 600, ctx).then(
+          new Promise<void>((resolve) => runtime.setTimer(resolve, 600)).then(
             () => undefined,
             () => undefined,
           ),

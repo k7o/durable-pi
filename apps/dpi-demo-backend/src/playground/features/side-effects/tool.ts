@@ -35,7 +35,7 @@ import { Pager } from "./pager.js";
       await pause(1500);
       api.output("Acknowledged.\n");
       return {
-        content: [
+        output: [
           {
             type: "text",
             text: `Paged the on-call engineer (${page}, ${severity}). They acknowledged. Do not page again for this.`,

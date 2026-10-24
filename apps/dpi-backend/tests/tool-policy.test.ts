@@ -10,7 +10,7 @@ const tool = (name: string) =>
     name,
     description: name,
     parameters: Type.Object({}),
-    execute: async () => ({ content: [{ type: "text", text: "" }] }),
+    execute: async () => ({ output: [{ type: "text", text: "" }] }),
   });
 
 test("tool policy: a tool declares that it writes", () => {

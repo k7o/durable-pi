@@ -62,7 +62,7 @@ export const TodoTool = defineTool({
       receipt.result = out;
       return out;
     }, ctx);
-    return { content: [{ type: "text", text }], details: { action: args.action } };
+    return { output: [{ type: "text", text }], details: { action: args.action } };
   },
 });
 

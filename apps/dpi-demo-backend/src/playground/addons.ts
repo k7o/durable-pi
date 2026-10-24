@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { defineDoc, defineExtension, hook, section, ToolTask, type Extension } from "@earendil-works/pi-durable";
 import type { HarnessExtensionInfo } from "../../../dpi-sdk/src/api.js";
 import { askJev, type JevAnswer, type JevQuestion } from "./jev.js";
+import { foldEvery } from "./checkpoint.js";
 
 const PROMPTS_DIR = join(import.meta.dirname, "../../prompts");
 
@@ -33,6 +34,7 @@ export const PromptChecklist = defineDoc<{ enabled: string[] }>({
   history: "latest",
   fork: "current",
   initial: () => ({ enabled: [PROMPTS[0].id] }),
+  checkpointWhen: foldEvery(),
 });
 
 // ------------------------------------------------------------------ jev-damage-control

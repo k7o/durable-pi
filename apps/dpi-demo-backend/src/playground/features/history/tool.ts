@@ -46,7 +46,7 @@ import { searchHistory } from "../../history.js";
         activeFrom,
         lastReset: resets.length ? Math.max(...resets) : undefined,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return { output: [{ type: "text", text: JSON.stringify(result) }] };
     },
   });
 

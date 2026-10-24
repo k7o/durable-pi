@@ -18,7 +18,7 @@ export function appState(shared: SharedState, sessionId: string): Feature {
     execute: async (args) => {
       const { value } = await shared.snapshot();
       return {
-        content: [{ type: "text", text: JSON.stringify(readState(value, args.path ?? "")) }],
+        output: [{ type: "text", text: JSON.stringify(readState(value, args.path ?? "")) }],
       };
     },
   });
@@ -62,7 +62,7 @@ export function appState(shared: SharedState, sessionId: string): Feature {
         }
         return receipt.result;
       }, ctx);
-      return { content: [{ type: "text", text: value }] };
+      return { output: [{ type: "text", text: value }] };
     },
   });
 

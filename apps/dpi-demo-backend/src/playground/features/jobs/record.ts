@@ -16,6 +16,7 @@
 import { defineDoc, type ConversationId, type RunningTask, type TaskId, type TaskRuntime, type Tx } from "@earendil-works/pi-durable";
 import { JOB_RUNS_DOC, type JobPhaseRun, type JobRun, type JobRunsDoc, type JobStep } from "../../../../../dpi-sdk/src/jobs.js";
 import type { Data, Values } from "./types.js";
+import { foldEvery } from "../../checkpoint.js";
 
 export const JobRuns = defineDoc<JobRunsDoc>({
   kind: JOB_RUNS_DOC,
@@ -24,6 +25,7 @@ export const JobRuns = defineDoc<JobRunsDoc>({
   history: "latest",
   fork: "initial",
   initial: () => ({ counts: {}, items: {} }),
+  checkpointWhen: foldEvery(),
 });
 
 export type JobInput = { job: string; input: Values };

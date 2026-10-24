@@ -94,7 +94,7 @@ async function approvalPhase(def: JobDef, index: number, task: Running, runtime:
 export async function runPhase(deps: JobsDeps, def: JobDef, index: number, task: Running, runtime: Run, ctx: Context) {
   const spec = def.phases[index];
   const cp = task.state.checkpoint;
-  if (index > 0 && cp.iteration === 0 && cp.approvalTask === undefined) await runtime.sleep(runtime.now() + PACE_MS, ctx);
+  if (index > 0 && cp.iteration === 0 && cp.approvalTask === undefined) await new Promise<void>((resolve) => runtime.setTimer(resolve, PACE_MS));
   if (spec.kind === "approval") return approvalPhase(def, index, task, runtime, ctx);
 
   // Enter the phase. Steps recorded by this same iteration mean a crash interrupted it: replace them.
@@ -128,6 +128,12 @@ export async function runPhase(deps: JobsDeps, def: JobDef, index: number, task:
   } catch (e) {
     if (runtime.signal.aborted) throw e;
     await fail(index, task, runtime, ctx, clip(String((e as Error)?.message ?? e), 400), "failed");
+    return;
+  }
+  if ("sleep" in outcome) {
+    // Park the run instead of holding the invocation: the engine resumes this phase at the same checkpoint, and a
+    // restart in between resumes it the same way.
+    await runtime.sleepUntil(outcome.sleep, cp, ctx);
     return;
   }
   if ("again" in outcome) {

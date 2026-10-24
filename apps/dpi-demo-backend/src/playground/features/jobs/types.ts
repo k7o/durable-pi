@@ -32,11 +32,14 @@ export interface Phase {
   saveTodoDigest(digest: TodoDigest): Promise<void>;
   /** Run a subagent with read and bash in an owned child conversation; its tool calls become steps. */
   agent(prompt: string): Promise<string>;
-  sleepUntil(at: number): Promise<void>;
 }
 
-/** A phase either finishes (with the run data to carry forward) or checkpoints again for the same phase. */
-export type Outcome = { done: string; data?: Data } | { again: Data; summary?: string };
+/**
+ * A phase finishes (with the run data to carry forward), checkpoints again for the same phase, or asks to be parked
+ * until `sleep` and then rerun from the same checkpoint. The handler must return it and do nothing else: a park
+ * commits the run's state and ends the invocation.
+ */
+export type Outcome = { done: string; data?: Data } | { again: Data; summary?: string } | { sleep: number };
 
 export type Handler = (p: Phase) => Promise<Outcome>;
 

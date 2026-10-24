@@ -42,9 +42,8 @@ const Live = defineTask<Record<string, never>, { phase: "wait" }, undefined>({
   version: 1,
   initial: () => ({ phase: "wait" }),
   phases: {
-    wait: async (_task, runtime, context) => {
-      await runtime.sleep(runtime.now() + 60_000, context);
-      await runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: undefined } }), context);
+    wait: async (task, runtime, context) => {
+      await runtime.sleepUntil(runtime.now() + 60_000, task.state.checkpoint, context);
     },
   },
   abort: async (_task, runtime, context) => {
@@ -69,7 +68,7 @@ test("a replayed todo call applies its edit once: the task-scoped receipt", asyn
         commit: (change: (tx: Tx) => unknown, commitContext: Context) => h.commit(change, commitContext),
       } as unknown as ToolExecutionApi;
       const result = await TodoTool.execute(args, api, ctx);
-      return (result.content as { type: string; text: string }[])[0].text;
+      return (result.output as { type: string; text: string }[])[0].text;
     };
     const tasks: TaskId[] = [];
     const liveTask = async () => {

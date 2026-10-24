@@ -42,7 +42,7 @@ import type { SpawnSession } from "./spawn.js";
 
 export type { Resolved, SessionRow };
 
-export const DURABLE_VERSION = "1.0.3";
+export const DURABLE_VERSION = "1.4.0";
 
 /** What every device does: streams and document reads. A pack adds the capabilities it brings. */
 export const DEVICE_CAPABILITIES: DeviceInfo["capabilities"] = ["events", "docs"];

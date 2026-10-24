@@ -166,6 +166,18 @@ test("contracts: GET /v1/device keys", async () => {
   }
 });
 
+test("contracts: the device reports the engine version it runs", async () => {
+  // `durableVersion` is what a client decides compatibility on, and it is a hand-kept string next to an exact pin in
+  // package.json. Reading the installed engine here is what makes a version bump update both at once.
+  const { DURABLE_VERSION } = await import("../../dpi-backend/src/device.js");
+  const { createRequire } = await import("node:module");
+  const { resolve } = await import("node:path");
+  // Resolved from the device's own package, so the assertion is about the copy it actually runs.
+  const requires = createRequire(resolve(import.meta.dirname, "../../dpi-backend/package.json"));
+  const installed = requires("@earendil-works/pi-durable/package.json") as { version: string };
+  assert.equal(DURABLE_VERSION, installed.version);
+});
+
 test("contracts: document kinds", () => {
   // Kinds are a rename contract, not an order contract: the agent kinds are the keys of one registry and the plan
   // seeds conversations in a different order (Workspace, JobRuns, Todos), so pinning the key order here would only

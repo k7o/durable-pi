@@ -7,6 +7,7 @@
 // tool call's receipt.
 import { defineDoc } from "@earendil-works/pi-durable";
 import { TODOS_DOC, type TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
+import { foldEvery } from "../../checkpoint.js";
 
 export const Todos = defineDoc<TodosDoc>({
   kind: TODOS_DOC,
@@ -15,6 +16,7 @@ export const Todos = defineDoc<TodosDoc>({
   history: "rewindable",
   fork: "asOf",
   initial: () => ({ items: [] }),
+  checkpointWhen: foldEvery(),
 });
 
 /** One receipt per tool call: a replay after a crash returns this result instead of editing the list twice. */
@@ -23,4 +25,5 @@ export const TodoReceipt = defineDoc<{ applied: boolean; result: string }>({
   version: 1,
   scope: "task",
   initial: () => ({ applied: false, result: "" }),
+  checkpointWhen: foldEvery(),
 });

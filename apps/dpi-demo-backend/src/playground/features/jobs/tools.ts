@@ -69,7 +69,7 @@ export function jobsTools(jobs: Jobs): Feature {
     execute: async (_args, api, ctx) => {
       const runs = await recentRuns(api, ctx);
       return {
-        content: [
+        output: [
           {
             type: "text",
             text: JSON.stringify(
@@ -139,7 +139,7 @@ export function jobsTools(jobs: Jobs): Feature {
       if (!wait) {
         const run = await read();
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `Started ${def.title} run #${run?.run ?? "?"} as durable task #${taskId}. It runs in the background, shows live in the chat and saves its result to App State ${def.resultPath}. Check it with check_durable_job {"task_id":${taskId}}.`,
@@ -162,7 +162,7 @@ export function jobsTools(jobs: Jobs): Feature {
       }
       const ok = run?.status === "completed";
       return {
-        content: [
+        output: [
           {
             type: "text",
             text: run
@@ -193,7 +193,7 @@ export function jobsTools(jobs: Jobs): Feature {
             : undefined;
       if (args.task_id === undefined && args.job === undefined)
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: JSON.stringify(
@@ -206,7 +206,7 @@ export function jobsTools(jobs: Jobs): Feature {
         throw Error(
           `No run ${args.task_id !== undefined ? `with task id ${args.task_id}` : `of ${args.job}`} in this conversation. Runs: ${runs.map((r) => `${r.id} (${r.job} #${r.run})`).join(", ") || "none"}`,
         );
-      return { content: [{ type: "text", text: JSON.stringify(runReport(run, Date.now())) }] };
+      return { output: [{ type: "text", text: JSON.stringify(runReport(run, Date.now())) }] };
     },
   });
 

@@ -39,7 +39,7 @@ export function sessionTools(sessionId: string, spawn: SpawnSession): Feature {
           ? await api.commit((tx) => tx.entry(AssistantEntry, result.answer), ctx)
           : undefined;
       return {
-        content: [
+        output: [
           { type: "text", text: answer ? JSON.stringify(answer.model) : JSON.stringify(result) },
         ],
         details: { conversationId: id },
@@ -80,7 +80,7 @@ export function sessionTools(sessionId: string, spawn: SpawnSession): Feature {
           ? "It has no prompt yet."
           : `Sent its first message as submission #${submissionId}. It runs on its own.`;
       return {
-        content: [
+        output: [
           {
             type: "text",
             text: `Started session "${session.name}" (${session.id}) in ${session.cwd} with ${session.model}. ${sent}`,
@@ -95,7 +95,7 @@ export function sessionTools(sessionId: string, spawn: SpawnSession): Feature {
     description: TOOL_DESCRIPTIONS.handoff,
     parameters: Type.Object({ note: Type.String() }),
     execute: async (args) => ({
-      content: [{ type: "text", text: "Context handed off." }],
+      output: [{ type: "text", text: "Context handed off." }],
       control: { handoff: args.note },
     }),
   });

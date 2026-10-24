@@ -8,20 +8,18 @@ export const Approval = defineTask<{ runId: number }, { phase: "wait" }, { appro
   version: 1,
   initial: () => ({ phase: "wait" }),
   phases: {
-    // Reads the run's decision every 500 ms without writing; the button click is the only write.
+    // Looks at the run's decision, then parks until the next look without writing; the button click is the only write.
     wait: async (task, runtime, ctx) => {
-      for (;;) {
-        const doc = await runtime.snapshot(JobRuns, task.conversationId, ctx);
-        const decision = doc?.items[String(task.input.runId)]?.approval;
-        if (decision && decision !== "pending") {
-          await runtime.commit(
-            () => ({ status: "terminal", outcome: { status: "completed", result: { approved: decision === "approved" } } }),
-            ctx,
-          );
-          return;
-        }
-        await runtime.sleep(runtime.now() + 500, ctx);
+      const doc = await runtime.snapshot(JobRuns, task.conversationId, ctx);
+      const decision = doc?.items[String(task.input.runId)]?.approval;
+      if (decision && decision !== "pending") {
+        await runtime.commit(
+          () => ({ status: "terminal", outcome: { status: "completed", result: { approved: decision === "approved" } } }),
+          ctx,
+        );
+        return;
       }
+      await runtime.sleepUntil(runtime.now() + 500, task.state.checkpoint, ctx);
     },
   },
   abort: async (_task, runtime, ctx) => {

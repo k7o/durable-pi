@@ -53,7 +53,9 @@ const handlers: Record<string, Handler> = {
       const dir = String(p.input.path);
       const total = Number(p.input.checks);
       const n = p.iteration + 1;
-      await p.sleepUntil(Number(p.data.nextAt ?? 0));
+      // Park until the interval is up, then run this same check iteration: no invocation is held in between.
+      const nextAt = Number(p.data.nextAt ?? 0);
+      if (p.now() < nextAt) return { sleep: nextAt };
       const before = (p.data.sums ?? {}) as Record<string, string>;
       const { sums, found } = await p.step("checkpoint", `Check ${n}/${total}`, async () => {
         const r = await p.shell(inDir(dir, `${FIND} -exec cksum {} + 2>/dev/null | head -300`));

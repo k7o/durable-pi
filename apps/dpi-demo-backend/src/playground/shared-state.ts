@@ -8,6 +8,7 @@ import {
   type AppState,
   type StateChange,
 } from "../../../dpi-sdk/src/app-state.js";
+import { foldEvery } from "./checkpoint.js";
 
 export const APP_STATE_DOC = "app.shared-state";
 
@@ -16,12 +17,14 @@ const Data = defineDoc<AppState>({
   version: 1,
   scope: "session",
   initial: () => ({}),
+  checkpointWhen: foldEvery(),
 });
 const Meta = defineDoc<{ initialized: boolean; revision: number }>({
   kind: "app.shared-state-meta",
   version: 1,
   scope: "session",
   initial: () => ({ initialized: false, revision: 0 }),
+  checkpointWhen: foldEvery(),
 });
 const Receipts = defineDocFamily<{ applied: boolean; result: string }, null>({
   kind: "app.shared-state-receipt",
@@ -29,6 +32,7 @@ const Receipts = defineDocFamily<{ applied: boolean; result: string }, null>({
   scope: "session",
   family: true,
   initial: () => ({ applied: false, result: "" }),
+  checkpointWhen: foldEvery(),
 });
 
 export class SharedState {

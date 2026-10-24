@@ -368,7 +368,7 @@ just proactive take        # reset and run the proactive demo
 - **`jev-damage-control` is a guard, not a sandbox.** It sends each command to a third-party API, and when Jev is unreachable the command runs.
 - **The proactive demo has no login** and its agents run `bash`. It binds `127.0.0.1` unless you pass `--host 0.0.0.0`.
 - **macOS devices run as a LaunchAgent** in the logged-in session, so unattended reboots need auto-login.
-- **pi-durable is experimental.** This repo pins 1.0.3.
+- **pi-durable is experimental.** This repo pins 1.4.0. Opening a session database with it migrates the SQLite schema to version 2, and a migrated database cannot be opened by 1.0.3: upgrading a device is a one-way door, so back up `~/.dpi/backend` before you do it.
 
 ---
 

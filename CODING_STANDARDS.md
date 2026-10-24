@@ -180,7 +180,7 @@ process. Pi loads extensions in processes that never start a session, so a top-l
 
 ### TS-204 Dependencies are pinned and justified · major
 
-Pi packages are pinned exactly (`"1.0.3"`, no caret); a caret lets a transitive change alter tool
+Pi packages are pinned exactly (`"1.4.0"`, no caret); a caret lets a transitive change alter tool
 behavior between installs. `dpi-sdk/src` keeps zero runtime dependencies and Node-only code lives
 under `src/node`. A new dependency for one helper needs a reason in the PR: what the alternative
 costs in code, and who maintains the package.
