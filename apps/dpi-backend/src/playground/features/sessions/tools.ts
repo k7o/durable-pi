@@ -3,9 +3,9 @@
 import { isAbsolute, resolve } from "node:path";
 import { Type } from "@earendil-works/pi-ai";
 import { AssistantEntry, configure, defineTool } from "@earendil-works/pi-durable";
-import { THINKING_LEVELS } from "../../../../dpi-sdk/src/api.js";
+import { THINKING_LEVELS } from "../../../../../dpi-sdk/src/api.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../tool-policy.js";
+import { writing } from "../../../tool-policy.js";
 import type { Feature } from "../feature.js";
 import type { SpawnSession } from "./types.js";
 

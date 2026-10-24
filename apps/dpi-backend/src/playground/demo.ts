@@ -3,10 +3,10 @@
 // session runtime, so they sit above those modules rather than inside one of them.
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation, Harness } from "@earendil-works/pi-durable";
-import type { StateChange } from "../../dpi-sdk/src/app-state.js";
-import type { SessionRow } from "./catalog.js";
-import type { Documents } from "./documents.js";
-import { ApiFault, invalid } from "./errors.js";
+import type { StateChange } from "../../../dpi-sdk/src/app-state.js";
+import type { SessionRow } from "../catalog.js";
+import type { Documents } from "../documents.js";
+import { ApiFault, invalid } from "../errors.js";
 import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
 import type { Jobs } from "./features/jobs/engine.js";
 import { JobRuns } from "./features/jobs/record.js";

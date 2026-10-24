@@ -1,5 +1,5 @@
 // Baseline a folder, re-check on an interval with one checkpoint per check, then report.
-import type { JobDef } from "../../../../dpi-sdk/src/jobs.js";
+import type { JobDef } from "../../../../../dpi-sdk/src/jobs.js";
 import { RESULT_ROOT, clip, inDir, label } from "./shared.js";
 import type { Handler, JobModule } from "./types.js";
 

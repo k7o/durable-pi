@@ -7,7 +7,7 @@ import {
   replaceState,
   type AppState,
   type StateChange,
-} from "../../dpi-sdk/src/app-state.js";
+} from "../../../dpi-sdk/src/app-state.js";
 
 const Data = defineDoc<AppState>({
   kind: "app.shared-state",

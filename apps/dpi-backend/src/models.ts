@@ -4,7 +4,7 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import type { ModelRef } from "@earendil-works/pi-durable";
 import type { ModelInfo } from "../../dpi-sdk/src/api.js";
 import { invalid } from "./errors.js";
-import { fauxModels, installFaux } from "./faux.js";
+import { fauxModels, installFaux } from "./playground/faux.js";
 import { curatedByProvider, defaultModelByProvider, describeModel } from "./model-catalog.js";
 import { providerFor, type ProviderId } from "./provider.js";
 

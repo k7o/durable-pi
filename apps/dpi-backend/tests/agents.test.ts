@@ -10,7 +10,7 @@ import { Conversations } from "../src/conversations.js";
 import { Agents } from "../src/agents.js";
 import { Models } from "../src/models.js";
 import { SessionRuntime } from "../src/session-runtime.js";
-import { SharedState } from "../src/shared-state.js";
+import { SharedState } from "../src/playground/shared-state.js";
 
 async function tempAgents() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-agents-")));

@@ -3,10 +3,10 @@
 import type { Context } from "@earendil-works/chord";
 import { configure, type ConversationId } from "@earendil-works/pi-durable";
 import { CodingTools, createBashTool, createReadTool } from "@earendil-works/pi-durable/tools";
-import { readState } from "../../../../dpi-sdk/src/app-state.js";
-import type { WireAssistantMessage, WireMessage, WireToolResultMessage } from "../../../../dpi-sdk/src/api.js";
-import type { JobDef, JobPhaseRun, JobRun } from "../../../../dpi-sdk/src/jobs.js";
-import { messageText } from "../../../../dpi-sdk/src/transcript.js";
+import { readState } from "../../../../../dpi-sdk/src/app-state.js";
+import type { WireAssistantMessage, WireMessage, WireToolResultMessage } from "../../../../../dpi-sdk/src/api.js";
+import type { JobDef, JobPhaseRun, JobRun } from "../../../../../dpi-sdk/src/jobs.js";
+import { messageText } from "../../../../../dpi-sdk/src/transcript.js";
 import { runOf, upsertStep, type Run, type Running } from "./record.js";
 import { clip } from "./shared.js";
 import type { JobsDeps, Phase } from "./types.js";

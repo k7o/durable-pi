@@ -14,6 +14,8 @@ Last checked after `b309916`, on `refactor/store-split`.
   construction, no algorithm) rather than a line count. See `docs/agents/store-split.md`.
 - **Open: steps 0, 1, 2, 3, 4 and 6.** Steps 2-4 are the feature split, planned slice by slice in
   `docs/agents/feature-split.md`.
+- The feature split landed at `src/playground/features/`, after a later move put the demo and its
+  features under `src/playground/`.
 - The measurements below are pre-split and stay as written, because they are the argument for the
   layout. `src` is now 4,667 lines, `jobs.ts` 840 and `extensions.ts` 581: the two hub files this
   plan is still about have not shrunk.

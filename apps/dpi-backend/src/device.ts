@@ -27,7 +27,7 @@ import {
   type WireEntry,
 } from "../../dpi-sdk/src/api.js";
 import { lastAssistantText } from "../../dpi-sdk/src/transcript.js";
-import { ExtensionSelection } from "./addons.js";
+import { ExtensionSelection } from "./playground/addons.js";
 import { Agents, type Resolved } from "./agents.js";
 import { Catalog, type SessionRow } from "./catalog.js";
 import { ChangeFeed } from "./changes.js";
@@ -35,14 +35,14 @@ import { Compaction } from "./compaction.js";
 import { Conversations } from "./conversations.js";
 import { Documents } from "./documents.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
-import type { SpawnSession } from "./features/sessions/types.js";
-import { JOB_DEFS } from "./features/jobs/defs.js";
+import type { SpawnSession } from "./playground/features/sessions/types.js";
+import { JOB_DEFS } from "./playground/features/jobs/defs.js";
 import { lockFile } from "./locks.js";
 import { Models } from "./models.js";
-import { Playground } from "./demo.js";
+import { Playground } from "./playground/demo.js";
 import type { ProviderId } from "./provider.js";
 import { SessionRuntime } from "./session-runtime.js";
-import { SharedState } from "./shared-state.js";
+import { SharedState } from "./playground/shared-state.js";
 
 export { AGENT_DOC_KINDS, DEVICE_DOC_KINDS } from "./documents.js";
 export type { Resolved, SessionRow };

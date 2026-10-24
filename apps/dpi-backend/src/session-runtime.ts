@@ -7,14 +7,14 @@
 //     device.ts                composition root: joins across modules, no SQL, no fs, no harness
 //       agents.ts              resolve, list, create, fork, configure, and agent projections
 //       conversations.ts       send, abort, withdraw, entries, transcript, tasks
-//       demo.ts                demo endpoints: App State writes, start a job, answer an approval
+//       playground/demo.ts     demo endpoints: App State writes, start a job, answer an approval
 //       documents.ts           reads for GET .../docs/:kind, and the one list of conversation documents
-//       playground.ts          the assembler: features in, the one `playground` extension out
+//       playground/playground.ts  the assembler: features in, the one `playground` extension out
 //       THIS FILE              one Harness per open session, plus its Jobs, Addons and registry
 //         harness              pi-durable: entries, documents, tasks and submissions, one commit each
-//           features/jobs/     a run is a task; each phase records steps and commits a checkpoint
-//           features/*/tools   a tool runs in its own task and commits its effect before answering
-//         shared-state.ts      chord replicated App State, shared by every session and agent
+//           playground/features/jobs/    a run is a task; each phase records steps and commits a checkpoint
+//           playground/features/*/tools  a tool runs in its own task and commits its effect before answering
+//         playground/shared-state.ts  chord replicated App State, shared by every session and agent
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { Harness, createRegistry } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
@@ -24,20 +24,20 @@ import { mkdir, readdir, realpath, rename as renamePath, stat } from "node:fs/pr
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { SessionSummary, ThinkingLevel } from "../../dpi-sdk/src/api.js";
-import { createAddons, type Addons } from "./addons.js";
+import { createAddons, type Addons } from "./playground/addons.js";
 import type { Catalog, SessionRow } from "./catalog.js";
 import type { ChangeFeed } from "./changes.js";
 import type { Compaction } from "./compaction.js";
 import { ApiFault, invalid, notFound } from "./errors.js";
 import { seedConversation } from "./documents.js";
-import { createPlayground } from "./playground.js";
-import type { SpawnSession } from "./features/sessions/types.js";
-import { createJobs, type Jobs } from "./features/jobs/engine.js";
-import { JobRuns } from "./features/jobs/record.js";
+import { createPlayground } from "./playground/playground.js";
+import type { SpawnSession } from "./playground/features/sessions/types.js";
+import { createJobs, type Jobs } from "./playground/features/jobs/engine.js";
+import { JobRuns } from "./playground/features/jobs/record.js";
 import { lockFile } from "./locks.js";
 import type { Models } from "./models.js";
-import type { SharedState } from "./shared-state.js";
-import { Todos } from "./features/todos/doc.js";
+import type { SharedState } from "./playground/shared-state.js";
+import { Todos } from "./playground/features/todos/doc.js";
 import { CODING_WRITES, withWrites } from "./tool-policy.js";
 
 type Opened = { harness: Harness; unlock: () => void; unsubscribe: () => void; jobs: Jobs; addons: Addons };

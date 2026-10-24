@@ -2,7 +2,7 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
-import { writing } from "../../tool-policy.js";
+import { writing } from "../../../tool-policy.js";
 import type { Feature } from "../feature.js";
 import { TodoReceipt, Todos } from "./doc.js";
 

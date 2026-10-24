@@ -2,7 +2,7 @@
 // hid. It reads the transcript through the tool API and never writes.
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type EntryRecord } from "@earendil-works/pi-durable";
-import type { WireEntry } from "../../../../dpi-sdk/src/api.js";
+import type { WireEntry } from "../../../../../dpi-sdk/src/api.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
 import type { Feature } from "../feature.js";
 import { searchHistory } from "../../history.js";

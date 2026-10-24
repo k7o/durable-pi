@@ -6,7 +6,7 @@
 // conversation, so a fork decides what to copy (`fork: "asOf"`) and every edit is part of the same commit as the
 // tool call's receipt.
 import { defineDoc } from "@earendil-works/pi-durable";
-import { TODOS_DOC, type TodosDoc } from "../../../../dpi-sdk/src/todos.js";
+import { TODOS_DOC, type TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
 
 export const Todos = defineDoc<TodosDoc>({
   kind: TODOS_DOC,

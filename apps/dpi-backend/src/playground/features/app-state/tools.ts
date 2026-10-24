@@ -2,10 +2,10 @@
 // change in the transcript, committing the receipt in the same transaction so a replay returns the first result.
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
-import { readState } from "../../../../dpi-sdk/src/app-state.js";
+import { readState } from "../../../../../dpi-sdk/src/app-state.js";
 import { TOOL_DESCRIPTIONS } from "../../prompt.js";
 import type { SharedState } from "../../shared-state.js";
-import { writing } from "../../tool-policy.js";
+import { writing } from "../../../tool-policy.js";
 import type { Feature } from "../feature.js";
 import { Receipt } from "../receipt.js";
 

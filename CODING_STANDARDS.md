@@ -110,7 +110,7 @@ every signature and call site. Use a precise alias when one exists; the task def
 no common supertype, so it is the one place `any` is allowed.
 
 ```ts
-// features/feature.ts: the one place a heterogeneous registration is allowed
+// src/playground/features/feature.ts: the one place a heterogeneous registration is allowed
 type AnyDoc = DocToken<JsonObject, DocDefinition<JsonObject>>;
 type AnyTask = TaskDefinition<any, any, any, any>; // no precise common supertype exists
 ```

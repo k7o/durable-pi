@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Documents } from "../src/documents.js";
-import { SharedState } from "../src/shared-state.js";
+import { SharedState } from "../src/playground/shared-state.js";
 
 test("documents: serves the device document and refuses unknown kinds", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dpi-documents-"));

@@ -1,6 +1,6 @@
 // The todo list as clients read it: one durable list per conversation, served at `demo.todos`, plus the last digest a
 // job wrote onto it. Types are aliases (not interfaces) so they stay JSON documents. The document itself is defined
-// next to the tool that edits it (`apps/dpi-backend/src/features/todos/doc.ts`).
+// next to the tool that edits it (`apps/dpi-backend/src/playground/features/todos/doc.ts`).
 
 export const TODOS_DOC = "demo.todos";
 

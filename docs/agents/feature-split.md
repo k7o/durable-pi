@@ -8,6 +8,10 @@ remaining clutter is two hub files, not three.
 Decisions settled on review: Q2 (every job under `features/jobs/`) and the slice 6 document-seeding
 collapse are both in. Implement in slices, one commit each.
 
+The slice tables below record the split as it happened in `src/features/`. A later move put the demo, and
+with it `features/`, under `src/playground/` so the device's own files read as one directory: every
+`features/...` path in this file is `src/playground/features/...` today.
+
 ## Progress
 
 | Slice | State | Evidence |

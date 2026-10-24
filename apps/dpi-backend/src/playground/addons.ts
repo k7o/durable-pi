@@ -8,14 +8,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { defineDoc, defineExtension, hook, section, ToolTask, type Conversation, type Extension } from "@earendil-works/pi-durable";
-import type { AgentExtensions as AgentExtensionsInfo, HarnessExtensionInfo } from "../../dpi-sdk/src/api.js";
-import type { SessionRow } from "./catalog.js";
-import type { ChangeFeed } from "./changes.js";
-import { invalid } from "./errors.js";
+import type { AgentExtensions as AgentExtensionsInfo, HarnessExtensionInfo } from "../../../dpi-sdk/src/api.js";
+import type { SessionRow } from "../catalog.js";
+import type { ChangeFeed } from "../changes.js";
+import { invalid } from "../errors.js";
 import { askJev, type JevAnswer, type JevQuestion } from "./jev.js";
-import type { SessionRuntime } from "./session-runtime.js";
+import type { SessionRuntime } from "../session-runtime.js";
 
-const PROMPTS_DIR = join(import.meta.dirname, "../prompts");
+const PROMPTS_DIR = join(import.meta.dirname, "../../prompts");
 
 export const PROMPTS = [
   {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { WireEntry } from "../../dpi-sdk/src/api.js";
-import { searchHistory } from "../src/history.js";
+import { searchHistory } from "../src/playground/history.js";
 
 const user = (id: number, text: string): WireEntry => ({
   id,

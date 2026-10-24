@@ -6,7 +6,7 @@
 // handler receives is built in phase.ts; the run record it writes is in record.ts; the tasks are in engine.ts.
 import type { Context } from "@earendil-works/chord";
 import type { TaskId } from "@earendil-works/pi-durable";
-import type { JobDef, JobRun, JobStep } from "../../../../dpi-sdk/src/jobs.js";
+import type { JobDef, JobRun, JobStep } from "../../../../../dpi-sdk/src/jobs.js";
 import { Approval } from "./approval.js";
 import { HANDLERS } from "./defs.js";
 import { phaseApi } from "./phase.js";
