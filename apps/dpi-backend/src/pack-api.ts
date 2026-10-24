@@ -1,10 +1,15 @@
 // What a pack is written against: the one file in the device that a pack may import.
 //
 // The seam has two halves. `pack.ts` is the interface a pack *implements*; this is the API it *uses* to implement it —
-// the device, its stores, the shared document policy, the tool policy, the error shapes a route may throw, and the
-// types of the objects the device hands over. Keeping them apart is what makes the boundary legible: a pack's `src/`
-// imports this file and nothing else from the device, and `tests/layout.test.ts` fails the build if that changes. A
-// pack's tests may still reach inside, because a test that stands in for the engine is not product code.
+// the device, the shared document policy, the tool policy, the error shapes a route may throw, and the types of the
+// objects the device hands over. Keeping them apart is what makes the boundary legible: a pack's `src/` imports this
+// file and nothing else from the device, and `tests/layout.test.ts` fails the build if that changes. A pack's tests may
+// still reach inside, because a test that stands in for the engine is not product code.
+//
+// Two rules keep the surface smaller than the device. Types that stand for an object a pack is handed are `Pick`s, not
+// classes — `AppStateStore` is the three methods a pack may call, so the store's engine stays out of reach, and the
+// same treatment is due for `Device` when a route needs narrowing. And where the device owns a format, it exports the
+// function that writes it (`appendStateChange`) instead of the constant a pack would have to keep in step.
 //
 // This file is also the future package entry: when a pack lives outside this repo, `exports` points here and every
 // import in a pack changes by one specifier, not by a hundred. Growing it is a decision about the public API, so add a
@@ -14,7 +19,7 @@ export { Models } from "./models.js";
 export { loadConfig } from "./config.js";
 export { serve } from "./serve.js";
 export { faux, fauxModels } from "./faux.js";
-export { FOLD_AFTER_DELTAS, foldEvery } from "./pack.js";
+export { foldEvery } from "./pack.js";
 export type {
   ConversationDoc,
   DeviceDoc,
@@ -25,7 +30,7 @@ export type {
   PackSession,
 } from "./pack.js";
 export type { SpawnSession } from "./spawn.js";
-export { SharedState } from "./app-state.js";
-export { STATE_ENTRY_KIND } from "./state-tools.js";
+export type { AppStateStore } from "./app-state.js";
+export { appendStateChange } from "./state-tools.js";
 export { writing } from "./tool-policy.js";
 export { ApiFault, invalid, notFound } from "./errors.js";

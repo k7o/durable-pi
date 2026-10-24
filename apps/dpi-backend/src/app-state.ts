@@ -101,3 +101,10 @@ export class SharedState {
     await this.harness.close(ctx);
   }
 }
+
+/**
+ * What a pack may do with App State: read it, change it, seed the keys it owns. The store stays the device's, so a pack
+ * cannot close it, and the engine behind it stays out of reach — `SharedState` carries its `harness`, and a `Pick` of
+ * three methods is the whole difference between a pack using the document and a pack driving the device.
+ */
+export type AppStateStore = Pick<SharedState, "snapshot" | "change" | "seed">;

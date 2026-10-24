@@ -12,7 +12,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import {
   DEVICE_CAPABILITIES,
   invalid,
-  type SharedState,
+  type AppStateStore,
   type Device,
   type ConversationDoc,
   type DevicePack,
@@ -39,13 +39,13 @@ const SEED: AppState = { goal: "Explore durable agents", counter: 0, notes: [] }
 export interface DemoPack extends DevicePack {
   readonly endpoints: DemoEndpoints;
   /** The device's App State store, as handed to `open`. The device opens and closes it. */
-  shared(): SharedState;
-  open(deps: { dataDir: string; appState: SharedState; notify: () => void }): Promise<void>;
+  shared(): AppStateStore;
+  open(deps: { dataDir: string; appState: AppStateStore; notify: () => void }): Promise<void>;
   close(): Promise<void>;
 }
 
 export function createDemoPack(options: { offline: boolean }): DemoPack {
-  let shared: SharedState | undefined;
+  let shared: AppStateStore | undefined;
   const jobsBySession = new Map<string, Jobs>();
   const addons = createAddons(options);
   const requireShared = () => {
@@ -124,7 +124,7 @@ export function createDemoPack(options: { offline: boolean }): DemoPack {
       shared = undefined;
       jobsBySession.clear();
     },
-    createSession({ spawn }: { spawn: SpawnSession; appState: SharedState }): PackSession {
+    createSession({ spawn }: { spawn: SpawnSession; appState: AppStateStore }): PackSession {
       return {
         install: ({ sessionId }) => {
           const jobs = createJobs({ shared: requireShared(), sessionId, todos: Todos });

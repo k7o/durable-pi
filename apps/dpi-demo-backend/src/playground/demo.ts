@@ -7,10 +7,10 @@ import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation } from "@earendil-works/pi-durable";
 import {
   ApiFault,
+  appendStateChange,
   invalid,
-  STATE_ENTRY_KIND,
+  type AppStateStore,
   type Device,
-  type SharedState,
 } from "../../../dpi-backend/src/pack-api.js";
 import type { StateChange } from "../../../dpi-sdk/src/app-state.js";
 import { JOB_DEFS, jobDef, resolveJobInput } from "./features/jobs/defs.js";
@@ -20,7 +20,7 @@ import { APP_STATE_DOC } from "../../../dpi-sdk/src/app-state.js";
 
 export class DemoEndpoints {
   constructor(
-    private readonly shared: () => SharedState,
+    private readonly shared: () => AppStateStore,
     private readonly jobsOf: (sessionId: string) => Jobs | undefined,
   ) {}
 
@@ -39,12 +39,9 @@ export class DemoEndpoints {
       undefined,
       typeof body.expectedRevision === "number" ? body.expectedRevision : undefined,
     );
+    // One helper writes the transcript entry, so the UI editor and an agent's tool call leave the same marker.
     await c.commit(
-      (tx) =>
-        tx.appendEntry(c.id, {
-          kind: STATE_ENTRY_KIND,
-          data: { text: `Shared App State: ${change.operation} ${change.path || "/"}` },
-        }),
+      (tx) => appendStateChange(tx, { conversationId: c.id, operation: change.operation, path: change.path }),
       ctx,
     );
     return { ok: true as const, ...(await device.documents.deviceDoc(APP_STATE_DOC)) };

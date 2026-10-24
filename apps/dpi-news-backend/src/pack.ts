@@ -9,7 +9,7 @@ import { defineExtension } from "@earendil-works/pi-durable";
 import {
   DEVICE_CAPABILITIES,
   writing,
-  type SharedState,
+  type AppStateStore,
   type ConversationDoc,
   type DevicePack,
 } from "../../dpi-backend/src/pack-api.js";
@@ -40,7 +40,7 @@ const docs: readonly ConversationDoc[] = [
  * One extension, so the whole app is one line in a session's tool list. The tool and the task share one digest
  * definition, which is what makes `digest` start the same task the session registers.
  */
-export function newsExtension(appState: SharedState) {
+export function newsExtension(appState: AppStateStore) {
   const digest = createNewsDigest(appState);
   return defineExtension({
     name: "news",

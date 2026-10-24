@@ -4,7 +4,7 @@
 // app's — so this is one small interface, not a plugin framework.
 import type { Router } from "express";
 import type { CheckpointInfo, Conversation, ConversationId, Extension, Harness, Tx } from "@earendil-works/pi-durable";
-import type { SharedState } from "./app-state.js";
+import type { AppStateStore } from "./app-state.js";
 import type { DeviceInfo, TaskNode } from "../../dpi-sdk/src/api.js";
 import type { Models } from "./models.js";
 import type { SpawnSession } from "./spawn.js";
@@ -83,10 +83,10 @@ export interface DevicePack {
    * read and change it here (or in a tool) with `snapshot()` and `change()`, and `seed()` only the keys this pack owns,
    * so two packs can share the document. `notify` wakes the device's change feed.
    */
-  open?(deps: { dataDir: string; appState: SharedState; notify: () => void }): Promise<void>;
+  open?(deps: { dataDir: string; appState: AppStateStore; notify: () => void }): Promise<void>;
   /** Release what `open` acquired. Safe to call twice. */
   close?(): Promise<void>;
-  createSession(deps: { spawn: SpawnSession; appState: SharedState }): PackSession;
+  createSession(deps: { spawn: SpawnSession; appState: AppStateStore }): PackSession;
   /**
    * The models this pack supplies when the device is asked for a provider the device itself does not ship, today
    * only `DPI_PROVIDER=faux`. Without it the device refuses that provider, so the demo app is the only place the

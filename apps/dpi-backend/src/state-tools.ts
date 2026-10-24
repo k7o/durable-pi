@@ -5,7 +5,14 @@
 // replayed call return its first result instead of incrementing twice; the transcript entry that records the change is
 // committed under its own receipt, so a replay does not append it again either.
 import { Type } from "@earendil-works/pi-ai";
-import { defineDoc, defineExtension, defineTool } from "@earendil-works/pi-durable";
+import {
+  defineDoc,
+  defineExtension,
+  defineTool,
+  type ConversationId,
+  type TaskId,
+  type Tx,
+} from "@earendil-works/pi-durable";
 import { readState, type StateChange } from "../../dpi-sdk/src/app-state.js";
 import type { SharedState } from "./app-state.js";
 import { foldEvery } from "./pack.js";
@@ -21,6 +28,21 @@ export const STATE_TOOL_DESCRIPTIONS = {
 
 /** The transcript entry a state change appends. The kind is the device's: App State is not a pack's document. */
 export const STATE_ENTRY_KIND = "app-state.change";
+
+/**
+ * Append the transcript entry that records a state change. The device owns the kind and the shape of the entry, so a
+ * pack that changes App State — a tool, a route, a task — calls this instead of building an entry it has to keep in
+ * step with the web client.
+ */
+export function appendStateChange(
+  tx: Tx,
+  change: { conversationId: ConversationId; operation: StateChange["operation"]; path: string; taskId?: TaskId },
+) {
+  return tx.appendEntry(change.conversationId, {
+    kind: STATE_ENTRY_KIND,
+    data: { ...(change.taskId !== undefined ? { taskId: change.taskId } : {}), text: `App State: ${change.operation} ${change.path || "/"}` },
+  });
+}
 
 /** One entry per state change, so a replay after a crash does not append the transcript entry twice. */
 const Entry = defineDoc<{ applied: boolean }>({
@@ -74,9 +96,11 @@ export function stateTools(appState: SharedState, sessionId: string) {
       const text = await api.commit(async (tx) => {
         const entry = await tx.doc(Entry, api.taskId);
         if (!entry.applied) {
-          await tx.appendEntry(api.conversationId, {
-            kind: STATE_ENTRY_KIND,
-            data: { taskId: api.taskId, text: `App State: ${change.operation} ${change.path || "/"}` },
+          await appendStateChange(tx, {
+            conversationId: api.conversationId,
+            operation: change.operation,
+            path: change.path,
+            taskId: api.taskId,
           });
           entry.applied = true;
         }

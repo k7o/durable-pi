@@ -3,7 +3,7 @@
 // runtime.ts is free to change how the phase is implemented.
 import type { JsonValue } from "@earendil-works/chord";
 import type { ConversationDocToken } from "@earendil-works/pi-durable";
-import type { SharedState } from "../../../../../dpi-backend/src/pack-api.js";
+import type { AppStateStore } from "../../../../../dpi-backend/src/pack-api.js";
 import type { JobDef, JobInputValue, JobStepKind } from "../../../../../dpi-sdk/src/jobs.js";
 import type { TodoDigest, TodosDoc } from "../../../../../dpi-sdk/src/todos.js";
 
@@ -48,7 +48,7 @@ export type Handler = (p: Phase) => Promise<Outcome>;
  * conversation document a job may read and annotate.
  */
 export interface JobsDeps {
-  readonly shared: SharedState;
+  readonly shared: AppStateStore;
   readonly sessionId: string;
   /** The todo document, supplied by the feature that owns it, so this feature imports no sibling. */
   readonly todos: ConversationDocToken<TodosDoc>;

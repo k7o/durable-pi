@@ -5,7 +5,7 @@
 // The task is built per session because the device hands each pack its App State store: a second app reads and writes
 // the same shared document as the demo without importing the demo.
 import { defineTask } from "@earendil-works/pi-durable";
-import type { SharedState } from "../../dpi-backend/src/pack-api.js";
+import type { AppStateStore } from "../../dpi-backend/src/pack-api.js";
 import type { StoryDigest } from "../../dpi-sdk/src/news.js";
 import { Stories } from "./stories.js";
 
@@ -14,7 +14,7 @@ export type DigestResult = { run: number; open: number; ranked: number; top?: st
 /** Where a run's summary lands in App State: one key under the app's name, so packs share one document. */
 export const RESULT_PATH = "/news";
 
-export function createNewsDigest(appState: SharedState) {
+export function createNewsDigest(appState: AppStateStore) {
   return defineTask<Record<string, never>, { phase: "digest" }, DigestResult>({
     name: "news.digest",
     version: 1,
