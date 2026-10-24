@@ -1,39 +1,53 @@
 # Experiment: a todo document, a tool and a one-phase job
 
-This experiment adds one small vertical slice to the playground backend:
+This experiment adds one small vertical slice to the playground:
 
 - a conversation document, `demo.todos`, that holds the todo list;
 - a `todo` tool the model can call to edit that document;
 - a one-phase durable job, `todo-digest`, that reads the document and writes a summary both to the document and to App State.
 
-It is deliberately small, but it exercises the three things you asked about: tools, tasks and extensions. The engine is the published `@earendil-works/pi-durable` package; all changes are application code in this repo, mostly in `apps/dpi-backend` plus one line in the web client's document subscription list.
+It is deliberately small, but it exercises the three things you asked about: tools, tasks and extensions. The engine is the published `@earendil-works/pi-durable` package; everything below is application code in this repo, and it lives in the demo pack, `apps/dpi-demo-backend/src/playground/`, plus one line in the web client's document subscription list.
 
-The paths and line numbers below are re-checked against the current layout, after the store split moved `store.ts` into `session-runtime.ts`, `documents.ts` and `routes.ts` (see `docs/agents/store-split.md`). The experiment branch, `experiment/todos-harden`, predates that move, so a checkout of it has the old paths.
+The experiment is merged into `deploy/sbx` (the merge of `experiment/todos-harden`), and the paths below are checked against the current layout, after the store split and the device-pack split that moved the demo out of `apps/dpi-backend` (see `docs/agents/store-split.md`, `docs/agents/feature-split.md` and `docs/agents/device-pack.md`). A checkout of `experiment/todos-harden` has the older paths.
 
-## Files changed
+The point to keep in mind while reading: `apps/dpi-backend` is the device and knows nothing about todos. The pack supplies the document, the tool, the job and the route that serves it, so this experiment is also a worked example of what a pack can add without touching the device.
+
+## Where each piece lives
 
 | File | What changed |
 |---|---|
-| `apps/dpi-backend/src/todos.ts` | New. Defines `Todos` with `defineDoc`, plus the `TodoItem`, `TodoDigest` and `TodosDoc` types. |
-| `apps/dpi-backend/src/extensions.ts` | New `TodoReceipt` task document (:49), new `todo` tool (:57), tool added to the playground extension (:559), one added sentence in the system prompt (:576). |
-| `apps/dpi-backend/src/jobs.ts` | New `todo-digest` job definition (:122), a handler at (:337), and two phase helpers: `todos()` and `saveTodoDigest()` (:179, :522). |
-| `apps/dpi-backend/src/session-runtime.ts` | Seeds `Todos` for every new conversation in `conversationCreated` (:131). |
-| `apps/dpi-backend/src/documents.ts`, `apps/dpi-backend/src/routes.ts` | Exposes `demo.todos` through `GET /v1/sessions/:s/agents/:a/docs/:kind`: the route at `routes.ts:163`, the read at `documents.ts:26`. |
-| `apps/dpi-backend/src/faux.ts` | Offline model commands for tests: `todos?` and `todo: <action> [arg]`. |
-| `apps/dpi-playground/apps/dpi-playground-fe/src/client/composables.ts` | Adds `demo.todos` to the agent stream's document list, so the web client receives live changes. No component renders it yet. |
-| `apps/dpi-backend/tests/api.test.ts` | Covers add, complete, list and the digest job, including its document writes. |
-| `apps/dpi-backend/tests/recovery.test.ts` | Covers the receipt under replay (one add, one toggle, one removal) and `demo.todos` plus its digest across a SIGKILL restart. |
+| `apps/dpi-demo-backend/src/playground/features/todos/doc.ts` | New. Defines `Todos` with `defineDoc`, and `TodoReceipt`, the task-scoped receipt the replay guard reads. |
+| `apps/dpi-sdk/src/todos.ts` | New. `TODOS_DOC`, `TodoItem`, `TodoDigest` and `TodosDoc`, in the SDK because the client reads the same JSON the pack writes. |
+| `apps/dpi-demo-backend/src/playground/features/todos/tools.ts` | New. The `todo` tool, and the `todos()` feature that publishes it. |
+| `apps/dpi-demo-backend/src/playground/prompt.ts` | One added sentence in the system prompt, and the `TOOL_DESCRIPTIONS.todo` entry. |
+| `apps/dpi-demo-backend/src/playground/features/jobs/todo-digest.ts` | New. The `todo-digest` job definition and its one phase. |
+| `apps/dpi-demo-backend/src/playground/features/jobs/{types,phase}.ts` | The phase gains `todos()` and `saveTodoDigest()`; the document token is injected as `JobsDeps.todos` instead of being imported from a sibling feature. |
+| `apps/dpi-demo-backend/src/playground/playground.ts` | The feature is added to the conversation's tool list. |
+| `apps/dpi-demo-backend/src/playground/pack.ts` | `Todos` is the third conversation document a session seeds, and the token is passed into `createJobs`. |
+| `apps/dpi-backend/src/{session-runtime,documents,routes}.ts` | Unchanged by this experiment, and that is the point: the device seeds whatever the pack lists (`session-runtime.ts` calls `documents.seed`) and serves it at `GET /v1/sessions/:s/agents/:a/docs/:kind` (`routes.ts`, read by `documents.agentDoc`). |
+| `apps/dpi-demo-backend/src/faux.ts` | Offline model commands for tests: `todos?` and `todo: <action> [arg]`. |
+| `apps/dpi-playground/apps/dpi-playground-fe/src/client/composables.ts` | Adds `demo.todos` to `AGENT_DOCS`, so the web client receives live changes. No component renders it yet. |
+| `apps/dpi-demo-backend/tests/{api,recovery,contracts}.test.ts` | The API test covers add, complete, list and the digest job; the recovery test covers replay and the SIGKILL restart; the contract test pins the document kinds a client may subscribe to. |
 
 ## The data model
 
-`apps/dpi-backend/src/todos.ts`
+The shape is in the SDK, because the client reads the same JSON the pack writes:
+
+`apps/dpi-sdk/src/todos.ts`
 
 ```ts
+export const TODOS_DOC = "demo.todos";
 export type TodoItem = { id: string; text: string; done: boolean; createdAt: number; doneAt?: number };
 export type TodosDoc = { items: TodoItem[]; digest?: TodoDigest };
+```
 
+The document itself is defined next to the tool that edits it:
+
+`apps/dpi-demo-backend/src/playground/features/todos/doc.ts`
+
+```ts
 export const Todos = defineDoc<TodosDoc>({
-  kind: "demo.todos",
+  kind: TODOS_DOC,
   version: 1,
   scope: "conversation",
   history: "rewindable",
@@ -44,11 +58,11 @@ export const Todos = defineDoc<TodosDoc>({
 
 `scope: "conversation"` means every conversation (including a subagent's) gets its own list. `history: "rewindable"` keeps older versions for `snapshotAsOf`. `fork: "asOf"` gives a fork the list as it was at the fork point, which matches the existing `Workspace` document.
 
-`session-runtime.ts` creates the document in `conversationCreated` (:131), so trees, forks and tool-created conversations all start with an empty list. `tx.doc(Todos, ...)` would also create it on first touch, so older sessions in an existing SQLite file are fine.
+Nothing in `apps/dpi-backend` names the document. The pack lists it as the third conversation document in `pack.ts` (seeding order is contract: `Workspace`, `JobRuns`, `Todos`), the device runs `documents.seed` from `conversationCreated` (`session-runtime.ts`), so trees, forks and tool-created conversations all start with an empty list. `tx.doc(Todos, ...)` would also create it on first touch, so older sessions in an existing SQLite file are fine.
 
 ## The tool
 
-`todo` is a module-level tool (`TodoTool` in `extensions.ts`): it closes over nothing, so one definition serves every session and a test can call `execute` directly. It takes an `action`:
+`todo` is a module-level tool (`TodoTool` in `apps/dpi-demo-backend/src/playground/features/todos/tools.ts`): it closes over nothing, so one definition serves every session and a test can call `execute` directly. It takes an `action`:
 
 | Action | Needs | Effect |
 |---|---|---|
@@ -100,13 +114,13 @@ The phase handler uses the existing job phase API and records two steps:
 
 The second call is the interesting one. It commits the digest onto `demo.todos` in the task's own commit, which is how a task writes a conversation document. The job still follows the existing convention of saving its result to App State at `resultPath`, so `list_durable_jobs` and `check_durable_job` remain truthful. An empty list short-circuits before that step: the run reports "Todo list is empty" and leaves the document alone rather than storing a digest of nothing.
 
-The new phase helpers are thin wrappers around the task runtime:
+The new phase helpers are thin wrappers around the task runtime. The document token arrives through `JobsDeps`, so the jobs directory never imports the todos feature:
 
 ```ts
-todos: async () => (await runtime.snapshot(Todos, task.conversationId, ctx)) ?? { items: [] },
+todos: async () => (await runtime.snapshot(deps.todos, task.conversationId, ctx)) ?? { items: [] },
 saveTodoDigest: (digest) =>
   runtime.commit(async (tx) => {
-    (await tx.doc(Todos, task.conversationId)).digest = digest;
+    (await tx.doc(deps.todos, task.conversationId)).digest = digest;
     return undefined;
   }, ctx),
 ```
@@ -118,10 +132,12 @@ Because the phase commits before returning, a restart mid-phase resumes from the
 Start the backend in one terminal and a client in another:
 
 ```bash
-just backend dev      # tsx watch; restarts on src changes
+just demo dev         # tsx watch on the demo device; restarts on src changes
 just hub start        # http://localhost:4781
 just tui attach local # or drive it from the terminal
 ```
+
+`just backend dev` runs the bare device, which has no todo tool: the document, the tool and the job are the pack's, so they do not exist there.
 
 In any playground conversation, ask:
 
@@ -162,12 +178,19 @@ sandbox, so these commands come from the kit and the device script (`sbx/durable
 
 ```bash
 # 0. Locally first: types and tests, so a break never reaches the device.
-cd apps/dpi-backend && ./node_modules/.bin/tsc --noEmit -p . && npm test && cd ../..
+cd apps/dpi-demo-backend && ./node_modules/.bin/tsc --noEmit -p . && npm test && cd ../..
 
-# 1. Stream this checkout's backend source into the device. /opt/durable-pi is root-owned, hence sudo.
-tar -C apps/dpi-backend -czf - src |
-  sbx exec device-a sh -c 'sudo tar -xzf - -C /opt/durable-pi/apps/dpi-backend'
+# 1. Stream both apps into the device: the device answers the route, the pack owns the todos, so a
+#    change to either has to land. /opt/durable-pi is root-owned, hence sudo.
+for app in dpi-backend dpi-demo-backend; do
+  tar -C "apps/$app" -czf - src |
+    sbx exec device-a sh -c "sudo tar -xzf - -C /opt/durable-pi/apps/$app"
+done
 ```
+
+The demo app imports the device by relative path, so the image keeps them siblings under
+`/opt/durable-pi/apps`, and the device starts from `apps/dpi-backend` with `DPI_PACK` pointing at the
+demo pack (`sbx/scripts/durable.sh`).
 
 ```bash
 # 2. Restart the backend on the new code. Not `durable start`: that rewrites ~/.dpi/backend.env from
@@ -225,8 +248,10 @@ Two operational notes:
   the checkout at the image's working directory:
 
   ```bash
-  sbx exec device-a sh -c \
-    'sudo cp -a /home/agent/workspace/apps/dpi-backend/src/. /opt/durable-pi/apps/dpi-backend/src/'
+  for app in dpi-backend dpi-demo-backend; do
+    sbx exec device-a sh -c \
+      "sudo cp -a /home/agent/workspace/apps/$app/src/. /opt/durable-pi/apps/$app/src/"
+  done
   ```
 
   (that sandbox must be the one created on this checkout).
@@ -247,7 +272,7 @@ environment would only give the paths another place to drift.
 The API test drives the tool through the faux model and then runs the job:
 
 ```bash
-cd apps/dpi-backend
+cd apps/dpi-demo-backend
 ./node_modules/.bin/tsc --noEmit -p .
 ./node_modules/.bin/tsx --test tests/api.test.ts
 npm test
@@ -255,7 +280,7 @@ npm test
 
 The new assertions check the item text and id, the completed flag, the `list` output, and the digest fields (`open: 0`, `done: 1`) written onto `demo.todos` by the job.
 
-`tests/recovery.test.ts` covers the two properties a restart is supposed to give:
+`apps/dpi-demo-backend/tests/recovery.test.ts` covers the two properties a restart is supposed to give:
 
 - **Replay:** `TodoTool.execute` is called twice under one live task id — the state a tool call is in
   when the engine reruns it after a crash — and the list gains one item, `complete` keeps its first
@@ -271,27 +296,28 @@ Both are part of `npm test`.
 
 ## Extending it
 
-- Add a `priority` field in `todos.ts`, a tool argument, and a sort in the digest phase. The document is typed, so the compiler points at every place that needs the field.
+- Add a `priority` field in `apps/dpi-sdk/src/todos.ts`, a tool argument in `apps/dpi-demo-backend/src/playground/features/todos/tools.ts`, and a sort in the digest phase. The types are shared with the client, so the compiler points at every place that needs the field.
 - Add a `todo-archive` job with two phases: write an archive to App State, then remove completed items in a checkpointed second phase. Aborting it demonstrates bottom-up task cancellation.
 - Add a hook in a new extension that blocks `todo` `remove` while a `demo.frozen` document is set. Hooks receive tool calls before they run; see `addons.ts` for a `beforeTool` example.
 - Add the list to the web UI next to `StateEditor.vue` by reading `demo.todos` through the existing docs endpoint.
 
 ## Reverting
 
-The experiment lives on `experiment/todos-harden`, cut from `deploy/sbx`: the baseline (document, tool,
-job, API test, this note) and the hardening on top (the replay and restart tests, the deploy runbook).
-So `deploy/sbx..experiment/todos-harden` is exactly this experiment. Drop the branch, or undo both
-commits on it, newest first:
+The experiment is merged into `deploy/sbx`. Its original commits are `7709cb7` and `591a080` on
+`experiment/todos-harden`, merged in `05e9090`; the device-pack split then moved the files from
+`apps/dpi-backend/src` into the demo pack without changing what they do.
 
-```bash
-# drop it
-git switch deploy/sbx && git branch -D experiment/todos-harden
-# or keep the branch and undo the two commits
-git revert --no-edit $(git log --format=%H deploy/sbx..experiment/todos-harden)
-```
+Reverting is a subtraction at the pack edge, not a branch operation, and nothing in `apps/dpi-backend`
+has to change:
 
-What those commits own, if you pick them apart by hand: `apps/dpi-backend/src/todos.ts` and
-`ai_docs/durable_pi/experiment-todos.md` are new; `apps/dpi-backend/src/{extensions,jobs,store,faux}.ts`,
-`apps/dpi-backend/tests/{api,recovery}.test.ts` and the web client's `composables.ts` are edited.
+1. Drop the `Todos` entry from the conversation documents in `pack.ts` and the `todos` argument in
+   `createJobs`, then delete `features/todos/`.
+2. Delete `apps/dpi-demo-backend/src/playground/features/jobs/todo-digest.ts` and its entry in the job
+   list, and the `todos()` and `saveTodoDigest()` helpers in
+   `apps/dpi-demo-backend/src/playground/features/jobs/phase.ts`.
+3. Delete the `todo` entry from `prompt.ts` and from the tool list in `playground.ts`.
+4. Delete `apps/dpi-sdk/src/todos.ts`, the `demo.todos` entry in `composables.ts`, and the faux commands.
+
+Reverting the two original commits and re-resolving the move reaches the same place, with more work.
 
 Existing session databases keep the `demo.todos` and `demo.todo-receipt` rows, but nothing reads them, so they are inert.
