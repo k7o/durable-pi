@@ -66,6 +66,23 @@ check opencode "opencode passes through" DPI_PACK= DPI_PROVIDER=opencode OPENCOD
 check opencode-go "requested key is absent, the other one is bound" DPI_PACK= DPI_PROVIDER=deepseek OPENCODE_API_KEY=sentinel
 check faux "no key at all, demo pack: faux is the only model access left" DPI_PACK="$pack" DPI_PROVIDER=deepseek
 
+# checkenv <expected> <label> <VAR=value…>: the DPI_PACK line `start` would write to the device's
+# env file. The backend is launched with that file, so this is what it will actually import — the
+# regression here is a shorthand name reaching a module resolver.
+checkenv() {
+  local want="$1" label="$2" got
+  shift 2
+  cases=$((cases + 1))
+  got="$(env -i PATH="$PATH" HOME="$tmp/home" DPI_HOME="$tmp/home/.dpi" DPI_APP_DIR="$tmp/app" \
+    "$@" bash "$durable" env 2>/dev/null | sed -n 's/^DPI_PACK=//p')"
+  if [ "$got" = "$want" ]; then
+    printf 'ok   %s → %s\n' "$label" "${got:-<empty>}"
+  else
+    printf 'FAIL %s → %s (want %s)\n' "$label" "${got:-<empty>}" "${want:-<empty>}"
+    fails=$((fails + 1))
+  fi
+}
+
 checkpack "$tmp/app/apps/dpi-demo-backend/src/pack.ts" "pack unset defaults to demo"
 checkpack "$tmp/app/apps/dpi-demo-backend/src/pack.ts" "pack=demo" DPI_PACK=demo
 checkpack "$tmp/app/apps/dpi-news-backend/src/pack.ts" "pack=news" DPI_PACK=news
@@ -73,6 +90,11 @@ checkpack "" "pack=bare is no pack" DPI_PACK=bare
 checkpack "" "pack= (empty) is no pack" DPI_PACK=
 checkpack "$pack" "a path passes through" DPI_PACK="$pack"
 checkpack "" "a name the image does not have is no pack" DPI_PACK=todos
+
+checkenv "$tmp/app/apps/dpi-news-backend/src/pack.ts" "the env file holds the news path, not the word" DPI_PACK=news
+checkenv "$tmp/app/apps/dpi-demo-backend/src/pack.ts" "the env file holds the demo path, not the word" DPI_PACK=demo
+checkenv "" "a bare device states no pack in the env file" DPI_PACK=bare
+checkenv "$tmp/app/apps/dpi-demo-backend/src/pack.ts" "an unset pack still writes the demo path to the file"
 
 if [ "$fails" -gt 0 ]; then
   printf '\n%d of %d cases failed\n' "$fails" "$cases" >&2

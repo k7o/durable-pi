@@ -7,6 +7,7 @@
 #   durable status   print how this device is configured and how to reach it
 #   durable pick     print the provider these environment variables resolve to, and nothing else
 #   durable pack     print the pack module this device serves, or nothing on a bare device
+#   durable env      print the settings `start` would write to ~/.dpi/backend.env
 #
 # `start` is the lifecycle startup hook and runs on every boot, so it has to converge: the
 # env file is rewritten each time (the token is the one thing it keeps), and the backend is
@@ -49,6 +50,15 @@ pack_path() {
   fi
 }
 
+# What to call this device's pack in a log line: the app directory it lives in (`dpi-news-backend`),
+# or `bare`. Parsing it back out of the env file got the last path segment instead, so the log said
+# "pack src" for every device.
+pack_label() {
+  local pack
+  pack="$(pack_path)"
+  if [ -n "$pack" ]; then basename "$(dirname "$(dirname "$pack")")"; else printf 'bare'; fi
+}
+
 pick_provider() {
   local want="${DPI_PROVIDER:-opencode-go}" pack
   pack="$(pack_path)"
@@ -82,7 +92,18 @@ pick_provider() {
   fi
 }
 
-write_env() {
+# Sessions start on the mounted workspace, so durable agents work on the user's real tree.
+start_dirs_path() {
+  local start_dirs="${WORKSPACE_DIR:-}"
+  if [ -z "$start_dirs" ] || [ ! -d "$start_dirs" ]; then start_dirs="$HOME/dpi-work"; fi
+  printf '%s' "$start_dirs"
+}
+
+# The device's settings, one assignment per line. This is the whole configuration the backend
+# process gets, which is why the pack is resolved here and not by whatever launched the hook: the
+# hook's environment carries the descriptor's shorthand (`DPI_PACK=news`), and a backend handed
+# that would try to import a module called "news".
+env_body() {
   local token provider model start_dirs pack
   # Reading a file that may not exist yet is its own branch: with `set -e` and `pipefail`, a
   # failing `sed` in the middle of a pipeline fails the whole assignment and takes the script
@@ -94,29 +115,29 @@ write_env() {
   provider="$(pick_provider)"
   if [ "$provider" = faux ]; then model="${DPI_MODEL:-echo}"; else model="${DPI_MODEL:-deepseek-v4.1-flash}"; fi
 
-  # Sessions start on the mounted workspace, so durable agents work on the user's real tree.
-  start_dirs="${WORKSPACE_DIR:-}"
-  if [ -z "$start_dirs" ] || [ ! -d "$start_dirs" ]; then start_dirs="$HOME/dpi-work"; fi
-
-  mkdir -p "$start_dirs" "$DPI_HOME_DIR"
-  umask 077
+  start_dirs="$(start_dirs_path)"
   {
     printf 'DPI_TOKEN=%s\n' "$token"
     printf 'DPI_DEVICE_NAME=%s\n' "${DPI_DEVICE_NAME:-$(hostname)}"
     printf 'DPI_PORT=%s\n' "$PORT"
     printf 'DPI_HOST=0.0.0.0\n'
     printf 'DPI_START_DIRS=%s\n' "$start_dirs"
-    # The pack this device serves, as a resolved path so the env file needs no re-resolution:
-    # demo by default, news if the descriptor's `pack` argument said so, and no line at all on a
-    # bare device. The startup hook names DPI_PACK, so the choice reaches this script.
-    pack="$(pack_path)"
-    if [ -n "$pack" ]; then printf 'DPI_PACK=%s\n' "$pack"; fi
+    # The pack this device serves, as a resolved path, and written even when it is empty: the file
+    # is the backend's whole environment, so "no pack" has to be stated or an inherited DPI_PACK
+    # would survive it.
+    printf 'DPI_PACK=%s\n' "$(pack_path)"
     printf 'DPI_PROVIDER=%s\n' "$provider"
     printf 'DPI_MODEL=%s\n' "$model"
     # Credentials reach the container as proxy sentinels; the real keys stay on the host.
     if [ -n "${OPENCODE_API_KEY:-}" ]; then printf 'OPENCODE_API_KEY=%s\n' "$OPENCODE_API_KEY"; fi
     if [ -n "${DEEPSEEK_API_KEY:-}" ]; then printf 'DEEPSEEK_API_KEY=%s\n' "$DEEPSEEK_API_KEY"; fi
-  } >"$ENV_FILE"
+  }
+}
+
+write_env() {
+  mkdir -p "$(start_dirs_path)" "$DPI_HOME_DIR"
+  umask 077
+  env_body >"$ENV_FILE"
   chmod 600 "$ENV_FILE"
 }
 
@@ -145,11 +166,19 @@ start() {
   fi
 
   write_env
-  log "starting dpi-backend on $BASE_URL (pack $(sed -n 's|^DPI_PACK=.*/\(.*\)/pack.ts$|\1|p' "$ENV_FILE" | head -1 | grep . || echo bare), provider $(sed -n 's/^DPI_PROVIDER=//p' "$ENV_FILE"), start dir $(sed -n 's/^DPI_START_DIRS=//p' "$ENV_FILE"))"
+  log "starting dpi-backend on $BASE_URL (pack $(pack_label), provider $(sed -n 's/^DPI_PROVIDER=//p' "$ENV_FILE"), start dir $(sed -n 's/^DPI_START_DIRS=//p' "$ENV_FILE"))"
   cd "$APP_DIR/apps/dpi-backend"
   # setsid: a long-running service belongs in its own process group, so it outlives the hook
   # that launched it and can be signaled as a unit.
-  setsid node_modules/.bin/tsx src/main.ts >>"$LOG_FILE" 2>&1 &
+  # The file is the device's configuration and the hook's environment is not: it can carry the
+  # descriptor's shorthand, which the backend would try to import as a module path. `set -a` plus a
+  # subshell makes the file win over anything inherited, and `exec` keeps $! the process to signal.
+  (
+    set -a
+    # shellcheck disable=SC1090 # the path is this device's own file
+    . "$ENV_FILE"
+    exec setsid node_modules/.bin/tsx src/main.ts
+  ) >>"$LOG_FILE" 2>&1 &
   printf '%s\n' "$!" >"$PID_FILE"
   wait_healthy
 }
@@ -226,6 +255,7 @@ case "${1:-attach}" in
   # test drives.
   pick) pick_provider ;;
   pack) printf '%s\n' "$(pack_path)" ;;
+  env) env_body ;;
   shell)
     start
     cd "${WORKSPACE_DIR:-$HOME}"
@@ -236,7 +266,7 @@ case "${1:-attach}" in
     status
     ;;
   *)
-    printf 'usage: durable start|attach|shell|status|pick|pack\n' >&2
+    printf 'usage: durable start|attach|shell|status|pick|pack|env\n' >&2
     exit 2
     ;;
 esac
