@@ -26,7 +26,9 @@ pilot/
   tests/Pilot.FailureTests/ the kill-and-resume tests that define acceptance
 ```
 
-Only `Pilot.AgentHost` exists so far; the other three are the remaining slices.
+Only `Pilot.AgentHost` exists so far. The trigger lives inside it as a hosted service
+(`LogStreamService`) rather than a separate project: it needs the same Durable Task client the host
+already has, and a second process would only add a way for the two to disagree.
 
 Packages: `Microsoft.Agents.AI`, `Microsoft.Agents.AI.DurableTask`,
 `Microsoft.DurableTask.Worker.AzureManaged`, `Microsoft.DurableTask.Client.AzureManaged`, and
@@ -67,6 +69,10 @@ Three, and the pilot does not get more:
 
 Streaming is a `GET /runs/{id}/events` SSE endpoint layered on the same state, not a
 fourth source of truth.
+
+The pilot also exposes `GET /runs` (the list a hub client reads), `GET /stream` (watched log plus the
+code-side rule's state), `GET /runs/{id}/history` (raw orchestration history, for stalls) and
+`DELETE /runs/{id}`. None of them is a new source of truth: they read the same committed state.
 
 ### 3. Failure tests define acceptance
 
@@ -114,6 +120,8 @@ Switches, all environment variables:
 | `PILOT_AGENT` | `plain` | `harness` requires `-p:PilotHarness=true` and currently stalls |
 | `PILOT_TOOLS` | `1` | `0` removes the tool loop |
 | `PILOT_DISABLE` | empty | harness capabilities to switch off, for bisecting a stall |
+| `PILOT_TRIGGER` | `0` | `1` watches the log stream and opens runs by itself |
+| `PILOT_TRIGGER_FAULT_AFTER` | `8` | stream lines before the bad deploy starts failing |
 | `DURABLE_TASK_SCHEDULER_CONNECTION_STRING` | emulator | point at a real scheduler |
 
 Model access is behind `IChatClient`. The default is a deterministic scripted client that issues

@@ -10,10 +10,10 @@ using Microsoft.DurableTask.Worker.AzureManaged;
 using Microsoft.Extensions.AI;
 using Pilot.AgentHost;
 
-const string AgentName = "Incident";
-const string OrchestratorName = "IncidentRun";
-const string DeployActivityName = "Deploy";
-const string ApprovalEventName = "DeployApproval";
+const string AgentName = Names.Agent;
+const string OrchestratorName = Names.Orchestrator;
+const string DeployActivityName = Names.DeployActivity;
+const string ApprovalEventName = Names.ApprovalEvent;
 
 string dtsConnectionString =
     Environment.GetEnvironmentVariable("DURABLE_TASK_SCHEDULER_CONNECTION_STRING")
@@ -83,6 +83,12 @@ builder.Services.ConfigureDurableAgents(
     },
     clientBuilder: b => b.UseDurableTaskScheduler(dtsConnectionString));
 
+// The proactive half: the stream opens runs on its own. Off unless asked for.
+if ((Environment.GetEnvironmentVariable("PILOT_TRIGGER") ?? "0").Trim() == "1")
+{
+    builder.Services.AddHostedService<LogStreamService>();
+}
+
 WebApplication app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { ok = true, agent = AgentName }));
@@ -108,6 +114,42 @@ app.MapPost("/runs", async (StartRunRequest request, DurableTaskClient client) =
         new StartOrchestrationOptions { InstanceId = runId });
 
     return Results.Ok(new { runId, created = true, state = "Scheduled" });
+});
+
+// The watched stream and the code-side rule that decides an incident exists.
+app.MapGet("/stream", (IServiceProvider services) =>
+{
+    LogStreamService? stream = services.GetServices<IHostedService>().OfType<LogStreamService>().FirstOrDefault();
+    return stream is null
+        ? Results.Ok(new { enabled = false, hint = "set PILOT_TRIGGER=1" })
+        : Results.Ok(stream.Snapshot());
+});
+
+// Every run this device knows about, newest first. The hub in Durable Pi is a client of this.
+app.MapGet("/runs", async (DurableTaskClient client) =>
+{
+    List<RunSummary> runs = [];
+    await foreach (OrchestrationMetadata metadata in client.GetAllInstancesAsync(
+        new OrchestrationQuery { PageSize = 100, FetchInputsAndOutputs = true }))
+    {
+        RunStatus? status = metadata.SerializedCustomStatus is null
+            ? null
+            : metadata.ReadCustomStatusAs<RunStatus>();
+
+        runs.Add(new RunSummary(
+            metadata.InstanceId,
+            metadata.RuntimeStatus.ToString(),
+            status?.Phase,
+            metadata.CreatedAt));
+    }
+
+    return Results.Ok(runs.OrderByDescending(run => run.CreatedAt).Take(20));
+});
+
+app.MapDelete("/runs/{runId}", async (string runId, DurableTaskClient client) =>
+{
+    await client.PurgeInstanceAsync(runId);
+    return Results.NoContent();
 });
 
 // Debug surface for the pilot: raw orchestration history, so a stalled run can be explained.

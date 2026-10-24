@@ -26,7 +26,7 @@ host_pid() { pgrep -f 'net10.0/Pilot.AgentHost' | head -1; }
 APP_BIN="$(cd "$(dirname "$0")" && pwd)/src/Pilot.AgentHost/bin/Debug/net10.0/Pilot.AgentHost"
 
 start_host() {
-    nohup "$APP_BIN" --urls "$BASE" >>"$HOST_LOG" 2>&1 &
+    env ${HOST_ENV:-} nohup "$APP_BIN" --urls "$BASE" >>"$HOST_LOG" 2>&1 &
     for _ in $(seq 1 120); do
         curl -sS --max-time 1 "$BASE/health" >/dev/null 2>&1 && return 0
         sleep 0.25
@@ -167,6 +167,46 @@ if wait_phase "$R" done 60; then
     fi
 else
     no "run did not complete after being killed inside the activity"
+fi
+
+# ---------------------------------------------------------------- test 6
+say "test 6: the log stream opens a run by itself  [$(stamp)]"
+BEFORE="$(curl -sS "$BASE/runs" | python3 -c "
+import json,sys
+print('\n'.join(sorted(r['runId'] for r in json.load(sys.stdin))))
+" 2>/dev/null)"
+# Retire earlier incident runs so "a new run appeared" cannot be satisfied by an old one.
+for old in $(printf '%s\n' "$BEFORE" | grep '^run-incident-'); do
+    curl -sS -o /dev/null -X DELETE "$BASE/runs/$old"
+done
+kill_host
+HOST_ENV="PILOT_TRIGGER=1 PILOT_TRIGGER_FAULT_AFTER=2"
+# The run must be created after this moment, so a leftover from an earlier invocation cannot
+# satisfy the test.
+T0="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export T0   # must reach python3 on the right of the pipe, so export it
+start_host || exit 1
+RID=""
+for _ in $(seq 1 60); do
+    RID="$(curl -sS "$BASE/runs" | python3 -c "
+import json,os,sys
+# Compare to-the-second: both stamps are UTC ISO, and Python's fromisoformat rejects
+# the 7-digit fractional seconds the service emits.
+t0 = os.environ['T0'][:19]
+for r in json.load(sys.stdin):
+    stamp = (r.get('createdAt') or '')[:19]
+    if stamp and r['runId'].startswith('run-incident-') and stamp >= t0:
+        print(r['runId']); break
+" 2>/dev/null)"
+    [ -n "$RID" ] && break
+    sleep 1
+done
+if [ -z "$RID" ]; then
+    no "no run appeared on its own within 60s"
+elif wait_phase "$RID" approve 60; then
+    ok "opened $RID after $T0 with no client request, and it is waiting for approval"
+else
+    no "run $RID opened by the stream never reached the approval wait"
 fi
 
 say ""

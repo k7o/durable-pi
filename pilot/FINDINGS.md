@@ -79,6 +79,21 @@ durable session across the restart.
 - **`GetOrchestrationHistoryAsync` is the debug tool.** `/runs/{id}/history` exists in this pilot for
   exactly that; a stalled run is undiagnosable from logs alone.
 
+## The trigger works, and it is code plus agent, not agent alone
+
+`LogStreamService` reads a synthetic stream, and a rule in code — three lines carrying the same
+fingerprint inside 120 s — opens the run. The agent then investigates, calls tools, applies a fix and
+waits for approval. Nobody asked. That is the Durable Pi claim reproduced end to end on this stack.
+
+Two design notes worth keeping:
+
+- **The incident key is the window start**, not a random id: `incident-<fingerprint>-<windowStartUnix>`.
+  The same fault window therefore cannot open two runs, no matter how many log lines arrive or how
+  often the host restarts.
+- **The threshold is code, not a model call.** Counting is deterministic and free; the open-ended
+  work is what goes to the agent. Mixing those up is how a "proactive agent" becomes an expensive
+  polling loop.
+
 ## Testing notes
 
 `./run-failure-tests.sh` runs all six acceptance tests in about 25 seconds. Start the host by running
@@ -91,10 +106,17 @@ Two traps when asserting on this system:
   matching `^data:`.
 - The deploy activity keys its marker by the **client run key** while orchestration ids are
   `run-<key>`. Comparing `/tmp/pilot-deploy/run-<key>.done` always finds nothing.
+- **`PurgeInstanceAsync` did not remove running instances** on the emulator, and `DELETE` returned
+  success anyway. So "did a *new* run appear?" cannot be answered by set membership — leftover
+  incident runs from an earlier invocation satisfy it. Assert on the run's `createdAt` against a
+  timestamp taken before the host started.
+- **Shell scoping bites**: `T0=... curl ... | python3 -c ...` puts `T0` on `curl`, not on `python3`,
+  and the `KeyError` disappears into `2>/dev/null` as "no run appeared". Export it.
+- Custom status needs `FetchInputsAndOutputs = true` in `OrchestrationQuery` too, or every row in the
+  run list reports a null phase. This is the third distinct place the same flag was required.
 
 ## Not yet exercised
 
-- The proactive trigger (log stream starting a run by itself). Next slice.
 - Replay across a package upgrade — now known to be the dangerous one, not merely expected.
 - A real model: the client is scripted so tests need no credentials. Nothing here has been proven
   against a live model's tool-calling loop.

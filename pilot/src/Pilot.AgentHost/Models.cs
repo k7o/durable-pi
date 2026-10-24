@@ -58,3 +58,19 @@ public sealed record DeployInput
     [JsonPropertyName("change")]
     public string Change { get; init; } = string.Empty;
 }
+
+/// <summary>One row of the run list a hub client reads.</summary>
+public sealed record RunSummary(
+    string RunId,
+    string State,
+    string? Phase,
+    DateTimeOffset? CreatedAt);
+
+/// <summary>Names the host and its clients must agree on.</summary>
+public static class Names
+{
+    public const string Agent = "Incident";
+    public const string Orchestrator = "IncidentRun";
+    public const string DeployActivity = "Deploy";
+    public const string ApprovalEvent = "DeployApproval";
+}
