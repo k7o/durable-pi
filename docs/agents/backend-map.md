@@ -30,7 +30,7 @@ A pack supplies:
 | `open` / `close` | the pack's contribution to the device's stores | seeds the App State keys the pack owns; the device opens and locks `app-state.sqlite` and tells the change feed |
 | `createSession({ spawn, appState })` | per-session extensions, in install order; `appState` is an `AppStateStore` (`snapshot`, `change`, `seed`), not the store object | the one `playground` extension (9 tools) |
 | `sessionExtensions` | custom extensions, installed unselected | `system-prompts`, `jev-damage-control` |
-| `routes(device)` | extra `/v1` routes, behind the token | `POST .../demo/state`, `.../demo/jobs`, `.../demo/jobs/:taskId/approval` |
+| `routes(device)` | extra `/v1` routes, behind the token; the device is full-power here on purpose, since a route is a product endpoint | `POST .../demo/state`, `.../demo/jobs`, `.../demo/jobs/:taskId/approval` |
 | `info()` | fields merged into `GET /v1/device` | `jobs`, and the `demo`/`jobs` capabilities |
 | `labelTask(task, h)` | title a task the pack owns | `demo.job.*` runs → `Release check #2` |
 

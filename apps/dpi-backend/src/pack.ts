@@ -95,7 +95,11 @@ export interface DevicePack {
   models?(): Promise<Models>;
   /** Custom extensions installed but not selected in every session. */
   readonly sessionExtensions?: PackExtensions;
-  /** Extra `/v1` routes, mounted behind the same token middleware. */
+  /**
+   * Extra `/v1` routes, mounted behind the same token middleware. The device is handed over as-is, engine and all: a
+   * route is a product endpoint, so it resolves agents, reads documents and starts work in its conversation. The seam
+   * narrows what a pack adds, not what its own code may do once it is running.
+   */
   routes?(device: Device): Router;
   /** Merged into `GET /v1/device` — this is where `jobs` and the demo capability come from. */
   info?(): Partial<DeviceInfo>;
