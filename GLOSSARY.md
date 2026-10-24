@@ -56,5 +56,9 @@ are revisioned, so a writer that started from a stale revision is refused.
 **Extension** — an installed set of tools and behaviour that an agent may select. Built-in
 extensions are always installed; custom ones are installed but off until an agent enables them.
 
+**Pack** — the product a device runs on top of the bare device: the documents it seeds and serves, the extensions it
+installs in every session, and the routes and device info it adds. The demo pack is the playground; a bare device runs
+the empty pack. A pack is a seam, not a plugin framework: exactly two exist.
+
 **Tool** — one callable capability offered to a model. Each tool declares whether it is replay-safe.
 Some tools only read; others create, update or delete.

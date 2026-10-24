@@ -34,8 +34,8 @@ export class Conversations {
   /** Task labels never change once known: tool names of pi.tool tasks, titles of the pack's own runs. */
   private readonly taskLabels = new Map<string, TaskLabel>();
 
-  /** `packLabel` titles a task the pack owns; undefined means the task is the device's own. */
-  constructor(private readonly packLabel?: (task: TaskNode, h: Harness) => Promise<TaskLabel | undefined>) {}
+  /** `labelPackTask` titles a task the pack owns; undefined means the task is the device's own. */
+  constructor(private readonly labelPackTask?: (task: TaskNode, h: Harness) => Promise<TaskLabel | undefined>) {}
 
   async send(c: Conversation, body: Record<string, unknown>) {
     if (typeof body.content !== "string" || !body.content.trim() || body.content.length > 100000)
@@ -215,8 +215,8 @@ export class Conversations {
   }
 
   private async taskLabel(h: Harness, node: TaskNode): Promise<TaskLabel | undefined> {
-    const packLabel = await this.packLabel?.(node, h);
-    if (packLabel) return packLabel;
+    const fromPack = await this.labelPackTask?.(node, h);
+    if (fromPack) return fromPack;
     if (node.kind !== "pi.tool") return undefined;
     const task = await h.getTask(node.id as TaskId, ctx);
     const input = task?.input as { assistant?: number; callId?: string } | undefined;

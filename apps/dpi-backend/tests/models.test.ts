@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { Models } from "../src/models.js";
 import { fauxModels } from "./faux.js";
 
 test("models: faux lists one deterministic model and routes anything else to it", async () => {
@@ -23,4 +24,8 @@ test("models: accepts only a model from this device's catalog", async () => {
   assert.throws(() => models.validate({ provider: "faux", modelId: "missing" }), /Unknown model/);
   assert.throws(() => models.validate({ provider: "openrouter", modelId: "echo" }), /Unknown model/);
   assert.throws(() => models.validate(undefined), /model must be/);
+});
+
+test("models: the device does not ship the demo app's fake provider", async () => {
+  await assert.rejects(() => Models.open("faux"), /demo app's model/);
 });

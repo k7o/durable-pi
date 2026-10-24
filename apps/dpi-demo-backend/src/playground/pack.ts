@@ -6,7 +6,7 @@
 // routes and the device info the demo adds (`jobs`, the demo capability).
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
-import type { Conversation, ConversationId } from "@earendil-works/pi-durable";
+import type { ConversationId } from "@earendil-works/pi-durable";
 import type { AppState } from "../../../dpi-sdk/src/app-state.js";
 import { JOB_RUNS_DOC } from "../../../dpi-sdk/src/jobs.js";
 import { TODOS_DOC } from "../../../dpi-sdk/src/todos.js";

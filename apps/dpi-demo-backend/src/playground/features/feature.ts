@@ -3,8 +3,8 @@
 // the prompt (PI-208): a new feature goes at the end, and a reorder is a prompt change, not a tidy-up.
 //
 // Documents are not part of this type. A feature still owns its document (`<feature>/doc.ts`), but the extension
-// does not register documents: documents.ts holds the one list of conversation documents, because it also seeds
-// and reads them, and a copy here would be a second list to keep in step.
+// does not register documents: playground/pack.ts holds the one list of conversation documents, because the device
+// also seeds and reads them, and a copy here would be a second list to keep in step.
 import type { AnyTask, ToolRegistration } from "@earendil-works/pi-durable";
 
 export type Feature = {

@@ -1,6 +1,51 @@
 # Device pack: plan
 
-Status: **approved direction, nothing implemented.** The demo stays; it moves out of the device.
+Status: **implemented, slices 0–5.** See [Progress](#progress) for what landed, where it differs from this plan and
+what is still a follow-up.
+
+## Progress
+
+Five commits on `refactor/device-pack`, each gated on `cd apps/dpi-backend && npm run check && npm test` (and the demo
+app's own `check`/`test` from slice 3 on):
+
+| Slice | State | Evidence |
+|---|---|---|
+| 0 · Contract snapshot | done | `apps/dpi-backend/tests/contracts.test.ts` +2 tests: the 38 `METHOD path` rows of the v1 router (including routes of a mounted pack router), the `GET /v1/device` keys, the demo capabilities and the `jobs` ids. No production change; 55/55 tests pass |
+| 1 · Pack seam | done | `src/pack.ts` (`DevicePack`, `PackSession`, `PackExtensions`, `PackExtension`, `PackPrompt`, `ConversationDoc`, `DeviceDoc`, `EMPTY_PACK`), `src/spawn.ts`; `SpawnSession` moved; nothing consumed the pack; no behavior change |
+| 2 · One demo entry point | done | `src/playground/pack.ts` implements the pack; `documents.ts` builds the registry from `pack.docs`/`pack.deviceDocs`, `session-runtime.ts` installs `pack.createSession()` + `pack.sessionExtensions`, `conversations.ts` asks `pack.labelTask`, `extensions.ts` owns `ExtensionSelection` over the pack's addons, `routes.ts` mounts `pack.routes()`, `device.ts` merges `pack.info()` and loses `demoState`/`startJob`/`approveJob`; `grep -rn playground apps/dpi-backend/src` shows only `main.ts` → `playground/pack.js`. 55/55 tests pass (device tests call the pack's own use cases) |
+| 3 · Faux + document ownership | **landed with slice 4** | The fake model's provider is only reachable once the demo app owns an entry point: a bare device main cannot construct `DPI_PROVIDER=faux` without importing the demo app's provider. The document half of this slice (registry from the pack) landed in slice 2, so the remaining work — `Models.from`, `Models.open` rejecting `faux`, the device's minimal test double — was committed with slice 4 |
+| 4 · The demo app | done | `apps/dpi-demo-backend` (`src/main.ts`, `src/pack.ts`, `src/faux.ts`, `src/playground/**`, `prompts/`, its own pinned `package.json` + lock); the demo half of the tests moved with it (api, streams, recovery, contracts, device, documents, history, shared-state, 19 tests); `just demo` (`run`, `dev`, `check`) added and `just backend` kept for the bare device; hub test, `network-ui.mjs`, TUI `smoke.sh` boot the demo app; `just test unit` includes the demo app. Backend 38/38, demo 19/19, hub 1/1 |
+| 5 · Docs and the guard | done | `docs/agents/backend-map.md` (new), `apps/dpi-demo-backend/README.md`, `apps/dpi-backend/README.md`, root `README.md`, `API.md` and the `session-runtime.ts` tracing map name the two apps; `apps/dpi-backend/tests/layout.test.ts` fails if anything under `src/` imports the demo app |
+
+### Where the implementation refines the plan
+
+- **`docs` sits on `DevicePack`, not `PackSession`.** The device's read path (`GET .../docs/:kind`) has no session
+  object to ask, and the list is the same for every session. Seeding order is unchanged (Workspace, JobRuns, Todos).
+- **The pack has `open`/`close`.** `SharedState` is opened once per device, before any session, locked, and seeded
+  from the pack — so the device passes the paths it publishes (`dataDir`, `appStatePath`) and a `notify` callback
+  instead of naming `SharedState`.
+- **`info()` returns `Partial<DeviceInfo>`**, not `Record<string, unknown>`: the device-info shape is the contract
+  owner (TS-104), and `jobs` stays typed.
+- **`sessionExtensions` is a small object** (`list`, `prompts`, `setPrompt`) rather than the whole addon list: the
+  device keeps `extensionsOf`/`setExtension` and the agent's stored selection, and only the extensions and prompt
+  checklists come from the pack.
+- **`DeviceOptions.models` replaces `provider`/`defaultModel`.** The entry point builds the model policy
+  (`Models.open`, or `Models.from` for the demo's fake provider), so `Device.open` needs no provider switch. This is
+  the "provider seam" the plan asked device tests to use, and it is what let faux leave `src/`.
+- **`src/serve.ts`** holds the express bootstrap both `main.ts` files share; `main.ts` reads `DPI_PACK` and loads a
+  pack module, as the plan asked.
+- **faux is two files, not one.** `apps/dpi-demo-backend/src/faux.ts` is the scripted offline model (its scripts name
+  demo tools); `apps/dpi-backend/tests/faux.ts` is a minimal echo/slow double for the device's own tests. The plan's
+  one-file version would have made the device's tests depend on the demo app, which the guard exists to prevent.
+
+### Follow-ups, recorded rather than discovered in a deploy
+
+- **The image build** (`sbx/durable.dockerfile`, `just kit stage`) still bakes `apps/dpi-backend`. The sandboxed
+  workload should run `apps/dpi-demo-backend` (or set `DPI_PACK`); until then the sandbox device serves the bare device.
+- **Deployment** (`just net deploy`, `apps/dpi-backend/deploy/`) rsyncs `dpi-backend` + `dpi-sdk` only. A deployed
+  device is now a bare device by design; deploy the demo app separately if a device should keep the playground.
+- **The demo runbook** in `apps/dpi-backend/README.md` still assumes the demo tools (`search_history`, jobs) on the
+  device it talks to; it needs the demo app deployed or a note that it targets the local demo device.
 
 ## Goal
 

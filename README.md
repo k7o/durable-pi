@@ -29,15 +29,16 @@ The command lives in [`.claude/commands/install.md`](.claude/commands/install.md
 
 **Prereqs:** [Node.js 24](https://nodejs.org) (via [nvm](https://github.com/nvm-sh/nvm)), [`just`](https://github.com/casey/just), `zsh` (macOS ships it), and an API key for one model provider: [OpenRouter](https://openrouter.ai) (the default), [DeepSeek](https://api.deepseek.com) or [OpenCode Zen/Go](https://opencode.ai). Remote devices need passwordless `ssh`, and exe.dev VMs need an [exe.dev](https://exe.dev) account.
 
-Set `DPI_PROVIDER` under `defaults.env` in `dpi-network.yaml` (or in a device's `~/.dpi/backend.env`) to `openrouter` (default), `deepseek`, `opencode`, `opencode-go` or `faux`, and name the matching key in `env_keys`. A device that lacks the key for its provider lists no models.
+Set `DPI_PROVIDER` under `defaults.env` in `dpi-network.yaml` (or in a device's `~/.dpi/backend.env`) to `openrouter` (default), `deepseek`, `opencode`, `opencode-go` or `faux`, and name the matching key in `env_keys`. A device that lacks the key for its provider lists no models. `faux` is the demo app's deterministic model, for offline runs and tests: `just demo dev`.
 
 ```bash
 cp .env.example .env                           # set the key for your provider; copied into each device's backend.env, never sent to clients
 cp dpi-network.example.yaml dpi-network.yaml   # your devices; starts with only `local`
-just install                                   # npm install for dpi-sdk, dpi-backend, dpi-playground and dpi-tui
+just install                                   # npm install for dpi-sdk, dpi-backend, dpi-demo-backend, dpi-playground and dpi-tui
 just net up local                              # write ~/.dpi/backend.env with a fresh token and register this machine
 just hub build                                 # build the web UI the hub serves (once, and after UI changes)
-just backend run                               # this machine's device server on :4780
+just backend run                               # this machine's device server on :4780 (bare device)
+just demo dev                                  # or the demo device on :4780 (App State, todos, jobs)
 just hub start                                 # web UI on http://localhost:4781 (second terminal)
 just tui attach local                          # or attach from the terminal (third terminal)
 ```
@@ -111,7 +112,8 @@ The playbook, tools, hooks, Jev questions, thresholds and model are all yours to
 
 | Piece | Where it runs | Owns |
 |---|---|---|
-| **`dpi-backend`** | every device, port 4780; a launchd or systemd service on remote machines | the harnesses, `~/.dpi/backend/catalog.sqlite`, one `sessions/<id>/agent.sqlite` per session, the device's shared App State, the bearer token in `~/.dpi/backend.env` |
+| **`dpi-backend`** | every device, port 4780; a launchd or systemd service on remote machines | the harnesses, `~/.dpi/backend/catalog.sqlite`, one `sessions/<id>/agent.sqlite` per session, the bearer token in `~/.dpi/backend.env`. The playground pack adds the shared App State, todos, durable jobs and the custom extensions |
+| **`dpi-demo-backend`** | a laptop or a sandbox, port 4780 | `dpi-backend` with the playground pack: App State, todos, the four jobs, the pager, the playground prompt and the `/demo` routes. Deleting it leaves the bare device |
 | **hub** (`apps/dpi-playground`) | your laptop, `127.0.0.1:4781` | the device registry and tokens in `~/.dpi/network.sqlite`, a token-injecting REST proxy, one multiplexed SSE stream per browser tab, the Vue client |
 | **`dpi-tui`** | any terminal | nothing: it reads a device's URL and token from the registry and talks to the device directly |
 | **`dpi-sdk`** | inside all of the above | the v1 wire contract, `DpiClient`, the SSE reader, the `AgentModel` and `SessionModel` reducers, transcript items, the registry and the ops drivers. See [`apps/dpi-sdk/README.md`](apps/dpi-sdk/README.md) |
@@ -166,7 +168,7 @@ Every model call and every tool call is its own durable task, so the agent's too
   <img src="images/13_hook_blocks_tool.svg" alt="A bash rm -rf call reaches the jev-damage-control beforeTool hook, which blocks it as irreversible and returns a blocked tool result to the agent" width="780">
 </p>
 
-pi-durable extensions bring your own tools, hooks, prompt sections and checkpointed tasks. The Extend tab turns two custom extensions on or off per agent. `system-prompts` is a checklist of built-in prompts, led by [`smart_ass_opus_fix.md`](apps/dpi-backend/prompts/smart_ass_opus_fix.md). `jev-damage-control` (off by default) sends every `bash` command to the Jev API before it runs and blocks destructive or irreversible ones in about 300 ms. Its verdict is a durable memo, so a restart never asks twice. If Jev is unreachable, the command runs.
+pi-durable extensions bring your own tools, hooks, prompt sections and checkpointed tasks. The Extend tab turns two custom extensions on or off per agent. `system-prompts` is a checklist of built-in prompts, led by [`smart_ass_opus_fix.md`](apps/dpi-demo-backend/prompts/smart_ass_opus_fix.md). These two extensions are the demo pack's; a bare device installs the coding tools only. `jev-damage-control` (off by default) sends every `bash` command to the Jev API before it runs and blocks destructive or irreversible ones in about 300 ms. Its verdict is a durable memo, so a restart never asks twice. If Jev is unreachable, the command runs.
 
 ### Fork at any entry
 
@@ -297,14 +299,16 @@ durable-pi/
 ├── apps/
 │   ├── dpi-sdk/                       # contract, client, reducers, transcript; node/ = registry, YAML config, ops drivers
 │   │   └── scripts/net.ts             # the ops CLI behind just net
-│   ├── dpi-backend/                   # the device server: REST v1, SSE streams, bearer auth, jobs, extensions
+│   ├── dpi-backend/                   # the device: REST v1, SSE streams, bearer auth, sessions, durability, the pack seam
 │   │   ├── API.md                     # every route, stream and recipe
-│   │   ├── prompts/                   # built-in prompts for the system-prompts extension
 │   │   └── deploy/                    # launchd plist, systemd unit, backend.env.example
+│   ├── dpi-demo-backend/              # the demo device: dpi-backend + the playground pack
+│   │   ├── src/playground/            #   App State, todos, jobs, pager, prompt, /demo routes
+│   │   └── prompts/                   #   built-in prompts for the system-prompts extension
 │   ├── dpi-playground/                # the hub + web client
 │   │   ├── apps/dpi-playground-hub/   # YAML seed, device monitor, token proxy, stream mux, guard
 │   │   ├── apps/dpi-playground-fe/    # Vue 3: network tree, agent view, inspector tabs
-│   │   └── tests/                     # hub test, faux-device UI suite, per-device suites, e2e scenario
+│   │   └── tests/                     # hub test, demo-device UI suite, per-device suites, e2e scenario
 │   ├── dpi-tui/                       # pi-like terminal client on @earendil-works/pi-tui
 │   └── proactive-dpi-demo/            # the hook: Jev log watcher, incident agents, durable deploy approval
 ├── sbx/                               # v3 Docker Sandboxes workload: the device as an image (see sbx/README.md)
@@ -322,16 +326,17 @@ durable-pi/
 
 ```bash
 just                       # command groups: net, backend, hub, tui, test, proactive, kit
-just install               # npm install for the four network apps
+just install               # npm install for the five network apps
 just check                 # type checks and unit tests, every app (free, no network)
-just backend run           # this machine's device server on :4780
+just backend run           # this machine's device server on :4780 (bare device)
+just demo dev              # the demo device on :4780 (App State, todos, jobs)
 just hub start             # web UI on :4781
 just tui attach <target>   # <device>[:<session>[:<agent>]]
 just net up <id>           # bring a device online (idempotent)
-just test ui               # web UI suite against two faux devices (free)
+just test ui               # web UI suite against two faux demo devices (free)
 just test device <id>      # UI, agent-feature and browser-close suites on one device (real model)
 just test e2e <id>         # TUI + web + restart mid-tool + fork on one device (real model)
-just test smoke faux       # TUI end to end in tmux against a faux backend
+just test smoke faux       # TUI end to end in tmux against a faux demo device
 just proactive take        # reset and run the proactive demo
 ```
 
