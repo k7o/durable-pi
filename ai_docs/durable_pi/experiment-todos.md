@@ -8,14 +8,17 @@ This experiment adds one small vertical slice to the playground backend:
 
 It is deliberately small, but it exercises the three things you asked about: tools, tasks and extensions. The engine is the published `@earendil-works/pi-durable` package; all changes are application code in this repo, mostly in `apps/dpi-backend` plus one line in the web client's document subscription list.
 
+The paths and line numbers below are re-checked against the current layout, after the store split moved `store.ts` into `session-runtime.ts`, `documents.ts` and `routes.ts` (see `docs/agents/store-split.md`). The experiment branch, `experiment/todos-harden`, predates that move, so a checkout of it has the old paths.
+
 ## Files changed
 
 | File | What changed |
 |---|---|
 | `apps/dpi-backend/src/todos.ts` | New. Defines `Todos` with `defineDoc`, plus the `TodoItem`, `TodoDigest` and `TodosDoc` types. |
-| `apps/dpi-backend/src/extensions.ts` | New `TodoReceipt` task document (:48), new `todo` tool (:56), tool added to the playground extension (:561), one added sentence in the system prompt (:575). |
+| `apps/dpi-backend/src/extensions.ts` | New `TodoReceipt` task document (:49), new `todo` tool (:57), tool added to the playground extension (:559), one added sentence in the system prompt (:576). |
 | `apps/dpi-backend/src/jobs.ts` | New `todo-digest` job definition (:122), a handler at (:337), and two phase helpers: `todos()` and `saveTodoDigest()` (:179, :522). |
-| `apps/dpi-backend/src/store.ts` | Seeds `Todos` for every new conversation (:529) and exposes `demo.todos` through `GET /v1/sessions/:s/agents/:a/docs/:kind` (:102). |
+| `apps/dpi-backend/src/session-runtime.ts` | Seeds `Todos` for every new conversation in `conversationCreated` (:131). |
+| `apps/dpi-backend/src/documents.ts`, `apps/dpi-backend/src/routes.ts` | Exposes `demo.todos` through `GET /v1/sessions/:s/agents/:a/docs/:kind`: the route at `routes.ts:163`, the read at `documents.ts:26`. |
 | `apps/dpi-backend/src/faux.ts` | Offline model commands for tests: `todos?` and `todo: <action> [arg]`. |
 | `apps/dpi-playground/apps/dpi-playground-fe/src/client/composables.ts` | Adds `demo.todos` to the agent stream's document list, so the web client receives live changes. No component renders it yet. |
 | `apps/dpi-backend/tests/api.test.ts` | Covers add, complete, list and the digest job, including its document writes. |
@@ -41,7 +44,7 @@ export const Todos = defineDoc<TodosDoc>({
 
 `scope: "conversation"` means every conversation (including a subagent's) gets its own list. `history: "rewindable"` keeps older versions for `snapshotAsOf`. `fork: "asOf"` gives a fork the list as it was at the fork point, which matches the existing `Workspace` document.
 
-`store.ts` creates the document in `conversationCreated`, so trees, forks and tool-created conversations all start with an empty list. `tx.doc(Todos, ...)` would also create it on first touch, so older sessions in an existing SQLite file are fine.
+`session-runtime.ts` creates the document in `conversationCreated` (:131), so trees, forks and tool-created conversations all start with an empty list. `tx.doc(Todos, ...)` would also create it on first touch, so older sessions in an existing SQLite file are fine.
 
 ## The tool
 
