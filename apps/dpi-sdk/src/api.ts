@@ -75,6 +75,11 @@ export interface DeviceInfo {
    * `jobs`, `news`, …). Open on purpose: a new app must not have to edit the device's wire contract to be listed.
    */
   capabilities: string[];
+  /**
+   * The document kinds `?docs=` accepts: agent documents are per conversation, device documents are shared. Absent on a
+   * device older than this field, so a client that gets `undefined` asks for nothing rather than for names it assumes.
+   */
+  documents?: { agent: string[]; device: string[] };
   /** Durable jobs any agent on this device can run (`POST .../demo/jobs` or the run_durable_job tool). */
   jobs?: JobDef[];
 }

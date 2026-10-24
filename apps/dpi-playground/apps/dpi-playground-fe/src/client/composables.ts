@@ -4,6 +4,7 @@ import { computed, ref, shallowRef, watch, type Ref } from "vue";
 import { AgentModel, NetworkModel, SessionModel } from "@sdk/models";
 import type { Activity, Frame } from "@sdk/api";
 import type { AppState } from "@sdk/app-state";
+import type { DeviceInfo } from "@sdk/api";
 import type { HubStream } from "./stream";
 
 export interface SessionTarget {
@@ -15,9 +16,17 @@ export interface AgentTarget extends SessionTarget {
 }
 export type FeedStatus = "idle" | "connecting" | "live" | "reconnecting" | "fault";
 
+// The agent documents this shell knows how to render. Which of them to ask for is the device's call, not this
+// constant's: a device serving another pack has none of them, and naming one it does not have faults the whole agent
+// view, transcript included (the device answers `Unknown document demo.job-runs. Allowed: news.stories`).
 export const AGENT_DOCS = ["demo.job-runs", "demo.workspace", "demo.todos"];
-export const agentSub = (t: AgentTarget) =>
-  `${t.deviceId}/agent/${t.sessionId}/${t.agentId}?docs=${AGENT_DOCS.join(",")}`;
+
+/** The intersection of what this shell renders and what the device serves; nothing at all when it cannot say. */
+export const agentDocsFor = (info?: DeviceInfo): string[] =>
+  (info?.documents?.agent ?? []).filter((kind) => AGENT_DOCS.includes(kind));
+
+export const agentSub = (t: AgentTarget, docs: readonly string[] = AGENT_DOCS) =>
+  `${t.deviceId}/agent/${t.sessionId}/${t.agentId}${docs.length ? `?docs=${docs.join(",")}` : ""}`;
 export const sessionSub = (t: SessionTarget) => `${t.deviceId}/session/${t.sessionId}`;
 export const deviceSub = (id: string) => `${id}/device?docs=app.shared-state`;
 
@@ -92,13 +101,19 @@ export function useSession(stream: HubStream, target: Ref<SessionTarget | undefi
   return { model, state, status, fault };
 }
 
-export function useAgent(stream: HubStream, target: Ref<AgentTarget | undefined>) {
+export function useAgent(
+  stream: HubStream,
+  target: Ref<AgentTarget | undefined>,
+  docs: () => readonly string[] = () => AGENT_DOCS,
+) {
   const model = new AgentModel();
   const version = ref(0);
   model.subscribe(() => version.value++);
   const { status, fault, select } = feed(stream, "agent", (frame) => model.apply(frame));
+  // `docs` is part of the subscription key: the device's document list arrives with its info, after the tree, so the
+  // key has to be able to change once more without the view being reopened.
   watch(
-    () => (target.value ? agentSub(target.value) : undefined),
+    () => (target.value ? agentSub(target.value, docs()) : undefined),
     (key) => {
       model.clear();
       select(key);

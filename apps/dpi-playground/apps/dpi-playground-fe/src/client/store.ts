@@ -6,7 +6,7 @@ import { sumUsage } from "@sdk/transcript";
 import { lineage } from "@sdk/models";
 import { HubStream } from "./stream";
 import { deviceClient, hub, message } from "./hub";
-import { useAgent, useDevice, useNetwork, useSession, type AgentTarget } from "./composables";
+import { agentDocsFor, useAgent, useDevice, useNetwork, useSession, type AgentTarget } from "./composables";
 
 export const stream = new HubStream();
 export const streamState = ref(stream.state);
@@ -32,7 +32,7 @@ export const sessionTarget = computed(() =>
     : undefined,
 );
 export const session = useSession(stream, sessionTarget);
-export const agent = useAgent(stream, selected);
+export const agent = useAgent(stream, selected, () => agentDocsFor(device.value?.info));
 export const deviceFeed = useDevice(stream, deviceId);
 
 export const sessionSummary = computed(() =>

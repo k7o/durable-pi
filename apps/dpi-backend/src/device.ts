@@ -179,6 +179,11 @@ export class Device {
     defaultModel: this.models.defaultModelId,
     storage: { dataDir: this.options.dataDir, catalogPath: this.catalogPath, appStatePath: this.sharedStatePath },
     codeDir: CODE_DIR,
+    // What `?docs=` accepts, split the way a client subscribes: agent documents belong to a conversation and are the
+    // ones a view has to name, while the device's own are shared. A client that renders a fixed set (the playground
+    // shell renders the demo pack's) asks for the intersection instead of guessing, which is how a device serving a
+    // different pack stops faulting the whole agent view over one document it never had.
+    documents: { agent: [...this.documents.agentKinds], device: [...this.documents.deviceKinds] },
     capabilities: [...DEVICE_CAPABILITIES],
     ...this.pack.info?.(),
   });

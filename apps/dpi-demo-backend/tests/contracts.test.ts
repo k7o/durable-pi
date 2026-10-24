@@ -143,6 +143,7 @@ test("contracts: GET /v1/device keys", async () => {
       "capabilities",
       "codeDir",
       "defaultModel",
+      "documents",
       "durableVersion",
       "hostname",
       "jobs",
@@ -155,6 +156,11 @@ test("contracts: GET /v1/device keys", async () => {
       "uid",
     ]);
     assert.deepEqual(info.capabilities, ["events", "docs", "demo", "jobs"]);
+    // The kinds a client may put in `?docs=`, which is how a shell asks for the documents it renders without naming
+    // ones this device never had.
+    // Sorted here because the pack's order is its seeding order, which is a different contract.
+    assert.deepEqual([...(info.documents?.agent ?? [])].sort(), ["demo.job-runs", "demo.todos", "demo.workspace"]);
+    assert.deepEqual(info.documents?.device, ["app.shared-state"]);
     assert.deepEqual(info.jobs?.map((job) => job.id), ["workspace-snapshot", "release-check", "change-watch", "todo-digest"]);
   } finally {
     await device.close();
