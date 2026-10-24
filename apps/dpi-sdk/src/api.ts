@@ -70,7 +70,11 @@ export interface DeviceInfo {
   storage: { dataDir: string; catalogPath: string; appStatePath: string };
   /** The checkout the backend runs from (repo root locally, `code_dir` on deployed devices). */
   codeDir?: string;
-  capabilities: Array<"events" | "docs" | "demo" | "jobs">;
+  /**
+   * What a client may assume the device serves: `events` and `docs` everywhere, and whatever the pack adds (`demo`,
+   * `jobs`, `news`, …). Open on purpose: a new app must not have to edit the device's wire contract to be listed.
+   */
+  capabilities: string[];
   /** Durable jobs any agent on this device can run (`POST .../demo/jobs` or the run_durable_job tool). */
   jobs?: JobDef[];
 }

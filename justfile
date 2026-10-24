@@ -12,6 +12,9 @@ mod backend 'just/backend'
 # The demo device: dpi-backend plus the playground pack
 mod demo 'just/demo'
 
+# News desk: dpi-backend plus the news pack
+mod news 'just/news'
+
 # Web UI hub on port 4781
 mod hub 'just/hub'
 

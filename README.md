@@ -114,6 +114,7 @@ The playbook, tools, hooks, Jev questions, thresholds and model are all yours to
 |---|---|---|
 | **`dpi-backend`** | every device, port 4780; a launchd or systemd service on remote machines | the harnesses, `~/.dpi/backend/catalog.sqlite`, one `sessions/<id>/agent.sqlite` per session, the bearer token in `~/.dpi/backend.env`. The playground pack adds the shared App State, todos, durable jobs and the custom extensions |
 | **`dpi-demo-backend`** | a laptop or a sandbox, port 4780 | `dpi-backend` with the playground pack: App State, todos, the four jobs, the pager, the playground prompt and the `/demo` routes. Deleting it leaves the bare device |
+| **`dpi-news-backend`** | a second device, port 4782 | `dpi-backend` with the news pack: one conversation document (`news.stories`), the `news` tool and one digest run. It is the smallest complete app on the pack seam — nothing in `dpi-backend` knows it exists |
 | **hub** (`apps/dpi-playground`) | your laptop, `127.0.0.1:4781` | the device registry and tokens in `~/.dpi/network.sqlite`, a token-injecting REST proxy, one multiplexed SSE stream per browser tab, the Vue client |
 | **`dpi-tui`** | any terminal | nothing: it reads a device's URL and token from the registry and talks to the device directly |
 | **`dpi-sdk`** | inside all of the above | the v1 wire contract, `DpiClient`, the SSE reader, the `AgentModel` and `SessionModel` reducers, transcript items, the registry and the ops drivers. See [`apps/dpi-sdk/README.md`](apps/dpi-sdk/README.md) |
@@ -305,6 +306,7 @@ durable-pi/
 │   ├── dpi-demo-backend/              # the demo device: dpi-backend + the playground pack
 │   │   ├── src/playground/            #   App State, todos, jobs, pager, prompt, /demo routes
 │   │   └── prompts/                   #   built-in prompts for the system-prompts extension
+│   ├── dpi-news-backend/              # a second app on the seam: news.stories, the news tool, one digest run
 │   ├── dpi-playground/                # the hub + web client
 │   │   ├── apps/dpi-playground-hub/   # YAML seed, device monitor, token proxy, stream mux, guard
 │   │   ├── apps/dpi-playground-fe/    # Vue 3: network tree, agent view, inspector tabs
