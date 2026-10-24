@@ -142,6 +142,12 @@ The device serves the demo pack unless you say otherwise; `--arg pack=news` give
 the same image, and `--arg pack=bare` gives the device with no product on it. One pack per device
 either way, which is why there is no such thing as two packs on one sandbox.
 
+`sbx run ./sbx` builds this directory as its context and never stages anything, so a `sbx/build` from
+before the checkout changed fails on `COPY build/apps/<app>: not found` — and sbx then prints
+conformance complaints about a missing `/etc/passwd` and `/bin/sh`, which describe the empty image it
+could not fill rather than the cause. Re-stage and it builds: `just kit run device-a` does both, or
+run `just kit stage` first.
+
 Find the port it published, declare that URL, and enroll:
 
 ```bash
