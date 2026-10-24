@@ -7,7 +7,6 @@ import { readState } from "../../../../dpi-sdk/src/app-state.js";
 import type { WireAssistantMessage, WireMessage, WireToolResultMessage } from "../../../../dpi-sdk/src/api.js";
 import type { JobDef, JobPhaseRun, JobRun } from "../../../../dpi-sdk/src/jobs.js";
 import { messageText } from "../../../../dpi-sdk/src/transcript.js";
-import { Todos } from "../todos/doc.js";
 import { runOf, upsertStep, type Run, type Running } from "./record.js";
 import { clip } from "./shared.js";
 import type { JobsDeps, Phase } from "./types.js";
@@ -92,10 +91,10 @@ export const phaseApi = (deps: JobsDeps, def: JobDef, index: number, task: Runni
         return undefined;
       }
     },
-    todos: async () => (await runtime.snapshot(Todos, task.conversationId, ctx)) ?? { items: [] },
+    todos: async () => (await runtime.snapshot(deps.todos, task.conversationId, ctx)) ?? { items: [] },
     saveTodoDigest: (digest) =>
       runtime.commit(async (tx) => {
-        (await tx.doc(Todos, task.conversationId)).digest = digest;
+        (await tx.doc(deps.todos, task.conversationId)).digest = digest;
         return undefined;
       }, ctx),
     sleepUntil: (at) => runtime.sleep(at, ctx),

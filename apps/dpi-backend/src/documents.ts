@@ -5,10 +5,11 @@ import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import type { Conversation, ConversationId, Harness, Tx } from "@earendil-works/pi-durable";
 import type { AppState } from "../../dpi-sdk/src/app-state.js";
 import { JOB_RUNS_DOC } from "../../dpi-sdk/src/jobs.js";
+import { TODOS_DOC } from "../../dpi-sdk/src/todos.js";
 import { notFound } from "./errors.js";
 import { WORKSPACE_DOC, Workspace } from "./features/app-state/doc.js";
 import { JobRuns } from "./features/jobs/record.js";
-import { Todos, TODOS_DOC } from "./features/todos/doc.js";
+import { Todos } from "./features/todos/doc.js";
 import type { SharedState } from "./shared-state.js";
 
 export const APP_STATE_DOC = "app.shared-state";

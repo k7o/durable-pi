@@ -133,7 +133,7 @@ export class SessionRuntime {
       const registry = createRegistry();
       const coding = withWrites(CodingTools, CODING_WRITES);
       registry.install(coding);
-      const jobs = createJobs({ shared: this.options.shared, sessionId: row.id });
+      const jobs = createJobs({ shared: this.options.shared, sessionId: row.id, todos: Todos });
       const thresholds = () => this.options.compaction.get(row.id);
       const playground = createPlayground(this.options.shared, row.id, this.options.spawn, jobs);
       registry.install(playground);
