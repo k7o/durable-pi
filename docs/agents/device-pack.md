@@ -44,7 +44,10 @@ app's own `check`/`test` from slice 3 on):
   `apps/dpi-demo-backend` too, and `sbx/scripts/durable.sh` writes
   `DPI_PACK=/opt/durable-pi/apps/dpi-demo-backend/src/pack.ts` into `backend.env`, so the sandbox
   device keeps the playground while its entrypoint stays `apps/dpi-backend`. `DPI_PACK=` in the
-  sandbox environment serves the bare device.
+  sandbox environment serves the bare device — which needed two fixes to be true: the descriptor's
+  startup hook had to name `DPI_PACK` (hook env is deny-by-default, so the value never reached the
+  script), and the boot script had to stop answering `faux` when no pack is loaded, since the bare
+  device refuses faux and never answers /healthz. `just kit test` pins the provider matrix.
 - **Deployment** (`apps/dpi-sdk/src/node/drivers.ts`) rsyncs and installs the demo app, and writes the
   same `DPI_PACK` into the device's `backend.env`; a device that wants the bare device sets `DPI_PACK:`
   (empty) in `dpi-network.yaml`, which the env writer applies last. Both scripts were changed and
