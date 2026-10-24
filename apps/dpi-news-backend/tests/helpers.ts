@@ -7,10 +7,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { defineTask, type ToolExecutionApi } from "@earendil-works/pi-durable";
+import type { StorySource } from "../../dpi-sdk/src/packs/news.js";
 import { Device } from "../../dpi-backend/src/device.js";
 import { faux, fauxModels } from "../../dpi-backend/src/faux.js";
-import { createNewsDigest } from "../src/digest.js";
 import { createNewsPack } from "../src/pack.js";
+import { createNewsTasks } from "../src/tasks.js";
 import { createNewsTool } from "../src/tool.js";
 
 export { faux };
@@ -40,8 +41,11 @@ const Live = defineTask<Record<string, never>, { phase: "wait" }, undefined>({
   },
 });
 
-/** A temp data dir and working folder, opened as a news device. Reopen with `open()` after a close. */
-export async function tempDevice() {
+/**
+ * A temp data dir and working folder, opened as a news device. Reopen with `open()` after a close. `sources` reaches the
+ * pack's extension, which is the definition the engine actually runs, so a fetch run reads whatever the test says.
+ */
+export async function tempDevice(sources?: readonly StorySource[]) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "dpi-news-")));
   await mkdir(join(root, "work", "project"), { recursive: true });
   const options = {
@@ -54,8 +58,8 @@ export async function tempDevice() {
     root,
     work: join(root, "work"),
     options,
-    pack: createNewsPack(),
-    open: () => Device.open(options, createNewsPack()),
+    pack: createNewsPack(sources),
+    open: () => Device.open(options, createNewsPack(sources)),
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }
@@ -64,7 +68,12 @@ export async function tempDevice() {
  * Call the `news` tool the way an agent's tool call does: one live task id for the receipt, one commit function. The
  * task is conversation-owned so the document layer accepts the receipt write.
  */
-export async function callTool(store: Device, session: string, args: Record<string, unknown>): Promise<string> {
+export async function callTool(
+  store: Device,
+  session: string,
+  args: Record<string, unknown>,
+  sources?: readonly StorySource[],
+): Promise<string> {
   const { h, c } = await store.resolveAgent(session, "main");
   const taskId = await h.commit(
     (tx) => tx.createTask(Live, {}, { ownership: { kind: "conversation" }, conversationId: c.id }),
@@ -75,7 +84,8 @@ export async function callTool(store: Device, session: string, args: Record<stri
     conversationId: c.id,
     commit: (change: (tx: never) => unknown, commitContext: typeof ctx) => h.commit(change as never, commitContext),
   } as unknown as ToolExecutionApi;
-  const tool = createNewsTool(createNewsDigest(store.appState));
+  // `sources` is how a fetch test points the run at its own server instead of the news.
+  const tool = createNewsTool(createNewsTasks(store.appState, sources));
   const result = await tool.execute(args as never, api, ctx);
   return (result.output as { type: string; text: string }[])[0].text;
 }

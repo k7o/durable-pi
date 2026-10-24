@@ -1,29 +1,27 @@
-// The `news` tool: this conversation's own story list, and the switch that starts a digest run.
+// The `news` tool: this conversation's own story list, and the switches that start a fetch run or a digest run.
 //
 // Every action runs in one commit together with a task-scoped receipt, so a crash cannot leave the list changed but
 // the model uninformed, and a replayed call returns its first result instead of adding the same story twice.
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-durable";
 import { writing } from "../../dpi-backend/src/pack-api.js";
-import { createNewsDigest } from "./digest.js";
 import { Stories, StoryReceipt } from "./stories.js";
+import type { NewsTasks } from "./tasks.js";
 
 export const NEWS_DESCRIPTION =
-  "Keep this conversation's news desk: add a story, list it, score it 0-100, or run a digest that summarises the list.";
-
-type DigestTask = ReturnType<typeof createNewsDigest>;
+  "Keep this conversation's news desk: add a story, list it, score it 0-100, fetch the configured feeds, or run a digest that summarises the list.";
 
 /**
- * The `news` tool. It closes over the digest task definition, which closes over the device's App State, so a pack
- * builds one per session and a test builds the same pair.
+ * The `news` tool. It closes over this app's task definitions, which close over the device's App State, so a pack builds
+ * one per session and a test builds the same set — `tasks.ts` is the single place that decides which tasks they are.
  */
-export function createNewsTool(digest: DigestTask) {
+export function createNewsTool(tasks: NewsTasks) {
   return defineTool({
     name: "news",
     description: NEWS_DESCRIPTION,
     parameters: Type.Object({
       action: Type.Union(
-        [Type.Literal("add"), Type.Literal("list"), Type.Literal("rank"), Type.Literal("digest")],
+        [Type.Literal("add"), Type.Literal("list"), Type.Literal("rank"), Type.Literal("fetch"), Type.Literal("digest")],
         { description: "What to do with the list." },
       ),
       title: Type.Optional(Type.String({ description: "Story title for add. Required for add." })),
@@ -47,6 +45,7 @@ export function createNewsTool(digest: DigestTask) {
             runs: doc.runs,
             items: doc.items,
             ...(doc.digest ? { digest: doc.digest } : {}),
+            ...(doc.fetch ? { fetch: doc.fetch } : {}),
           });
         } else if (args.action === "add") {
           const title = args.title?.trim();
@@ -67,10 +66,20 @@ export function createNewsTool(digest: DigestTask) {
           if (!story) throw Error(`No story ${id}. Use action list for ids.`);
           story.score = Math.round(args.score);
           out = `Ranked ${id} at ${story.score}: ${story.title}`;
+        } else if (args.action === "fetch") {
+          // One feed per phase invocation, so a restart resumes at the next feed rather than at the first.
+          const taskId = await tx.createTask(
+            tasks.fetch,
+            {},
+            { ownership: { kind: "conversation" }, conversationId: api.conversationId, background: true },
+          );
+          receipt.applied = true;
+          receipt.result = `Started fetch run as durable task #${taskId}. It reads the configured feeds, adds what the list does not have, and records what each feed did; read the result with action list.`;
+          return receipt.result;
         } else {
           // The run is its own durable task, started in this commit so the receipt and the task cannot disagree.
           const taskId = await tx.createTask(
-            digest,
+            tasks.digest,
             {},
             { ownership: { kind: "conversation" }, conversationId: api.conversationId, background: true },
           );

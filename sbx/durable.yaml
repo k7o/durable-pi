@@ -83,6 +83,11 @@ capabilities:
           - api.deepseek.com:443
           # The durable agent's tools work on the mounted workspace: git, gh, and npm when a
           # task installs dependencies.
+          # The news pack's default feeds. A device serving the demo never asks for them; a device with
+          # `--arg pack=news` does, and a source you add needs its host here too.
+          - hnrss.org:443
+          - lobste.rs:443
+          - www.theverge.com:443
           - github.com:443
           - api.github.com:443
           - codeload.github.com:443
